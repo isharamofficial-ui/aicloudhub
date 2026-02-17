@@ -57,29 +57,17 @@ const Withdraw = () => {
     if (!user) return;
     setLoading(true);
 
-    const { data: walletData } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
-    if (walletData) {
-      await supabase.from("wallets").update({ balance: Number(walletData.balance) - amt }).eq("user_id", user.id);
-    }
-
-    const { error } = await supabase.from("withdrawal_requests").insert({
-      user_id: user.id, amount: amt, bank_account_id: bankAccountId,
+    const { data, error } = await supabase.rpc("submit_withdrawal", {
+      p_amount: amt,
+      p_bank_account_id: bankAccountId,
     });
 
-    if (!error) {
-      await supabase.from("transactions").insert({
-        user_id: user.id, type: "withdrawal" as const, amount: amt, status: "pending" as const,
-        description: "Withdrawal request",
-      });
-      await supabase.from("notifications").insert({
-        user_id: user.id, type: "money",
-        title: "Withdrawal Request Submitted",
-        description: `Your withdrawal of Rs ${amt.toLocaleString()} is pending admin approval.`,
-      });
-    }
-
     setLoading(false);
-    if (error) { toast.error("Failed to submit withdrawal"); } else { setSubmitted(true); }
+    if (error || (data && !(data as any).success)) {
+      toast.error((data as any)?.error || "Failed to submit withdrawal");
+    } else {
+      setSubmitted(true);
+    }
   };
 
   if (dataLoading) return <div className="px-4 py-4 space-y-4"><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-64 rounded-2xl" /></div>;

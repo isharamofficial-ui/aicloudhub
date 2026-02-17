@@ -11,6 +11,7 @@ const AdminNotificationBell = () => {
 
   useEffect(() => {
     if (!isAdmin) return;
+
     const fetchAlerts = async () => {
       const { count } = await supabase
         .from("admin_alerts")
@@ -18,9 +19,24 @@ const AdminNotificationBell = () => {
         .eq("is_resolved", false);
       setUnresolvedCount(count || 0);
     };
+
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 30000);
-    return () => clearInterval(interval);
+
+    // Realtime subscription for instant updates
+    const channel = supabase
+      .channel("admin-alerts-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_alerts" },
+        () => {
+          fetchAlerts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isAdmin]);
 
   if (!isAdmin) return null;
@@ -29,7 +45,7 @@ const AdminNotificationBell = () => {
     <Link to="/admin/alerts" className="relative">
       <Bell className={cn("w-5 h-5", unresolvedCount > 0 ? "text-destructive" : "text-muted-foreground")} />
       {unresolvedCount > 0 && (
-        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center animate-pulse">
           {unresolvedCount > 9 ? "9+" : unresolvedCount}
         </span>
       )}

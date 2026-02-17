@@ -635,6 +635,10 @@ export type Database = {
         Returns: boolean
       }
       purchase_package: { Args: { p_package_id: string }; Returns: Json }
+      submit_withdrawal: {
+        Args: { p_amount: number; p_bank_account_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
