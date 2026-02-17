@@ -1,22 +1,93 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tag, Gift } from "lucide-react";
+import { Tag, Gift, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const Redeem = () => {
+  const { user } = useAuth();
   const [code, setCode] = useState("");
-  const [redeemed, setRedeemed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleRedeem = () => {
-    if (!code.trim()) {
-      toast.error("Please enter a promo code");
+  const handleRedeem = async () => {
+    if (!code.trim()) { toast.error("Please enter a promo code"); return; }
+    if (!user) return;
+    setLoading(true);
+
+    // Find the code
+    const { data: codeData } = await supabase
+      .from("redeem_codes")
+      .select("*")
+      .eq("code", code.trim().toUpperCase())
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!codeData) {
+      toast.error("Invalid or expired promo code. Please try again.");
+      setLoading(false);
+      setCode("");
       return;
     }
-    // Simulate redemption
-    toast.error("Invalid or expired promo code. Please try again.");
+
+    // Check expiry
+    if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
+      toast.error("This promo code has expired.");
+      setLoading(false);
+      setCode("");
+      return;
+    }
+
+    // Check max uses
+    if (codeData.current_uses >= codeData.max_uses) {
+      toast.error("This promo code has reached its usage limit.");
+      setLoading(false);
+      setCode("");
+      return;
+    }
+
+    // Check if user already used this code
+    const { data: existing } = await supabase
+      .from("redeem_code_uses")
+      .select("id")
+      .eq("code_id", codeData.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      toast.error("You have already used this promo code.");
+      setLoading(false);
+      setCode("");
+      return;
+    }
+
+    // Redeem: add to wallet, track usage
+    const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
+    if (wallet) {
+      await supabase.from("wallets").update({ balance: Number(wallet.balance) + Number(codeData.reward_amount) }).eq("user_id", user.id);
+    }
+
+    await supabase.from("redeem_code_uses").insert({ code_id: codeData.id, user_id: user.id });
+    await supabase.from("redeem_codes").update({ current_uses: codeData.current_uses + 1 }).eq("id", codeData.id);
+
+    // Create transaction
+    await supabase.from("transactions").insert({
+      user_id: user.id, type: "deposit" as const, amount: Number(codeData.reward_amount),
+      status: "approved" as const, description: `Redeemed promo code: ${codeData.code}`,
+    });
+
+    // Create notification
+    await supabase.from("notifications").insert({
+      user_id: user.id, type: "promo",
+      title: "Promo Code Redeemed!",
+      description: `You received Rs ${Number(codeData.reward_amount).toLocaleString()} from promo code ${codeData.code}.`,
+    });
+
+    toast.success(`Rs ${Number(codeData.reward_amount).toLocaleString()} added to your wallet!`);
     setCode("");
+    setLoading(false);
   };
 
   return (
@@ -47,16 +118,17 @@ const Redeem = () => {
 
         <Button
           onClick={handleRedeem}
+          disabled={loading}
           className="w-full rounded-2xl h-14 text-base font-heading font-bold gradient-secondary text-secondary-foreground glow-teal shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
         >
-          <Tag className="w-5 h-5 mr-2" />
+          {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Tag className="w-5 h-5 mr-2" />}
           Redeem
         </Button>
       </div>
 
       {/* Info */}
       <div className="shadow-neu rounded-2xl bg-card p-4 text-center space-y-1">
-        <p className="text-xs text-muted-foreground">📋 Promo codes are case-insensitive and single-use.</p>
+        <p className="text-xs text-muted-foreground">📋 Promo codes are case-insensitive and single-use per user.</p>
         <p className="text-[10px] text-muted-foreground">Contact support if you experience any issues.</p>
       </div>
     </div>

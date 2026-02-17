@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,14 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
+  type CarouselApi,
 } from "@/components/ui/carousel";
 import { Link } from "react-router-dom";
 import {
   ArrowDownToLine, ArrowUpFromLine, Package, Users, Copy,
   ChevronRight, FileText, HelpCircle, BarChart3, Headphones, Download, LogOut,
   Brain, Database as DbIcon, Cpu, Server, Zap, Star,
-  Megaphone, CalendarCheck, Send, Wallet, Banknote, Info, MessageCircle,
+  Megaphone, CalendarCheck, Send, Wallet, Banknote, Info,
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,14 @@ interface UserPackage {
   is_active: boolean;
   price_paid: number;
   ai_packages: { name: string; description: string | null } | null;
+}
+
+interface SliderBanner {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  gradient: string;
+  sort_order: number;
 }
 
 // --- Random data generators ---
@@ -92,16 +101,28 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [marqueeMsg, setMarqueeMsg] = useState(() => generateMarqueeMsg());
   const [livePayouts, setLivePayouts] = useState<{ user: string; amount: number; key: number }[]>([]);
+  const [banners, setBanners] = useState<SliderBanner[]>([]);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+
+  useEffect(() => {
+    if (!carouselApi) return;
+    const onSelect = () => setActiveSlide(carouselApi.selectedScrollSnap());
+    carouselApi.on("select", onSelect);
+    onSelect();
+    return () => { carouselApi.off("select", onSelect); };
+  }, [carouselApi]);
 
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [walletRes, pkgRes, profileRes, comRes, upRes] = await Promise.all([
+      const [walletRes, pkgRes, profileRes, comRes, upRes, bannersRes] = await Promise.all([
         supabase.from("wallets").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("ai_packages").select("*").order("price_monthly", { ascending: true }),
         supabase.from("profiles").select("referral_code").eq("user_id", user.id).maybeSingle(),
         supabase.from("commissions").select("amount").eq("user_id", user.id),
         supabase.from("user_packages").select("*, ai_packages(name, description)").eq("user_id", user.id).eq("is_active", true).order("purchased_at", { ascending: false }),
+        supabase.from("slider_banners").select("*").eq("is_active", true).order("sort_order", { ascending: true }),
       ]);
       setWallet(walletRes.data as WalletData | null);
       const pkgs = (pkgRes.data || []).map((p: any) => ({ ...p, features: Array.isArray(p.features) ? p.features : [] }));
@@ -109,6 +130,7 @@ const Dashboard = () => {
       setReferralCode(profileRes.data?.referral_code || "");
       setCommissionTotal((comRes.data || []).reduce((s: number, c: any) => s + Number(c.amount), 0));
       setUserPackages((upRes.data || []) as UserPackage[]);
+      setBanners((bannersRes.data || []) as SliderBanner[]);
       setLoading(false);
     };
     fetchData();
@@ -128,14 +150,12 @@ const Dashboard = () => {
     let keyCounter = 0;
     const addPayout = () => {
       const newItem = { user: randomPhone(), amount: randomAmount(500, 20000), key: keyCounter++ };
-      setLivePayouts((prev) => [newItem, ...prev.slice(0, 19)]); // keep max 20
+      setLivePayouts((prev) => [newItem, ...prev.slice(0, 19)]);
     };
-    // Seed initial items with staggered timing
     const seedTimeouts: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < 4; i++) {
       seedTimeouts.push(setTimeout(() => addPayout(), i * (1500 + Math.random() * 2000)));
     }
-    // Ongoing additions
     const schedule = () => {
       const delay = 3000 + Math.random() * 5000;
       return setTimeout(() => {
@@ -150,7 +170,7 @@ const Dashboard = () => {
   const referralLink = `${window.location.origin}/register?ref=${referralCode}`;
   const copyLink = () => { navigator.clipboard.writeText(referralLink); toast.success("Referral link copied!"); };
 
-  // Countdown timer (fake 23h 59m)
+  // Countdown timer
   const [countdown, setCountdown] = useState("23h 59m");
   useEffect(() => {
     const now = new Date();
@@ -179,6 +199,15 @@ const Dashboard = () => {
     );
   }
 
+  const slidesToShow = banners.length > 0 ? banners : [
+    { id: "1", title: "New User Bonus!", subtitle: "Get Rs.100 Free on Signup", gradient: "from-yellow-500 via-red-500 to-orange-500", sort_order: 1 },
+    { id: "2", title: "Llama 3 Models Available", subtitle: "Rent Now for Best Returns!", gradient: "from-teal-500 via-cyan-500 to-blue-500", sort_order: 2 },
+    { id: "3", title: "Invite 5 Friends", subtitle: "Win Rs.5,000 Reward!", gradient: "from-orange-500 via-pink-500 to-purple-500", sort_order: 3 },
+  ];
+
+  // Calculate daily earnings from active packages
+  const todayDailyEarnings = userPackages.reduce((sum, up) => sum + Math.round(up.price_paid * 0.05), 0);
+
   return (
     <div className="animate-fade-in">
       {/* ═══════ MARQUEE ═══════ */}
@@ -197,14 +226,11 @@ const Dashboard = () => {
           opts={{ loop: true }}
           plugins={[Autoplay({ delay: 4000, stopOnInteraction: false })]}
           className="w-full"
+          setApi={setCarouselApi}
         >
           <CarouselContent>
-            {[
-              { title: "New User Bonus!", sub: "Get Rs.100 Free on Signup", gradient: "from-yellow-500 via-red-500 to-orange-500" },
-              { title: "Llama 3 Models Available", sub: "Rent Now for Best Returns!", gradient: "from-teal-500 via-cyan-500 to-blue-500" },
-              { title: "Invite 5 Friends", sub: "Win Rs.5,000 Reward!", gradient: "from-orange-500 via-pink-500 to-purple-500" },
-            ].map((slide, i) => (
-              <CarouselItem key={i}>
+            {slidesToShow.map((slide) => (
+              <CarouselItem key={slide.id}>
                 <div className={cn(
                   "rounded-2xl p-5 aspect-[16/7] flex flex-col justify-end bg-gradient-to-br text-white relative overflow-hidden",
                   slide.gradient
@@ -212,9 +238,8 @@ const Dashboard = () => {
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="relative z-10">
                     <p className="text-lg font-heading font-bold leading-tight">{slide.title}</p>
-                    <p className="text-sm opacity-90 mt-0.5">{slide.sub}</p>
+                    <p className="text-sm opacity-90 mt-0.5">{slide.subtitle}</p>
                   </div>
-                  {/* Decorative circles */}
                   <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
                   <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10" />
                 </div>
@@ -222,8 +247,15 @@ const Dashboard = () => {
             ))}
           </CarouselContent>
           <div className="flex justify-center gap-1.5 mt-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/30" />
+            {slidesToShow.map((_, i) => (
+              <button
+                key={i}
+                className={cn(
+                  "rounded-full transition-all",
+                  activeSlide === i ? "w-4 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-primary/30"
+                )}
+                onClick={() => carouselApi?.scrollTo(i)}
+              />
             ))}
           </div>
         </Carousel>
@@ -266,7 +298,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: "AI DB Rental", value: userPackages.filter(p => (p.ai_packages as any)?.name?.toLowerCase().includes("db") || (p.ai_packages as any)?.name?.toLowerCase().includes("database")).reduce((s, p) => s + Math.round(p.price_paid * 0.05), 0) },
-              { label: "Package Sales", value: userPackages.reduce((s, p) => s + Math.round(p.price_paid * 0.05), 0) },
+              { label: "Package Sales", value: todayDailyEarnings },
               { label: "Bonus Credits", value: 0 },
             ].map((item) => (
               <div key={item.label} className="shadow-neu rounded-xl bg-card p-3 text-center">
@@ -411,7 +443,6 @@ const Dashboard = () => {
                     </Badge>
                   )}
 
-                  {/* Limited stock on HOT items */}
                   {isHot && (
                     <p className="text-[10px] text-destructive font-semibold mt-2">🔥 Limited Stock: 14 left</p>
                   )}
@@ -458,7 +489,6 @@ const Dashboard = () => {
 
         <div className="h-4" />
       </div>
-
     </div>
   );
 };

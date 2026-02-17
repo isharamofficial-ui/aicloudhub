@@ -139,6 +139,8 @@ const AdminDashboard = () => {
         <Link to="/admin/packages"><Button variant="outline" className="w-full h-12 rounded-xl"><Package className="w-4 h-4 mr-2" />Manage Packages</Button></Link>
         <Link to="/admin/deposits"><Button variant="outline" className="w-full h-12 rounded-xl"><ArrowDownToLine className="w-4 h-4 mr-2" />All Deposits</Button></Link>
         <Link to="/admin/withdrawals"><Button variant="outline" className="w-full h-12 rounded-xl"><ArrowUpFromLine className="w-4 h-4 mr-2" />All Withdrawals</Button></Link>
+        <Link to="/admin/redeem-codes"><Button variant="outline" className="w-full h-12 rounded-xl">🎫 Redeem Codes</Button></Link>
+        <Link to="/admin/sliders"><Button variant="outline" className="w-full h-12 rounded-xl">🖼️ Slider Banners</Button></Link>
       </div>
     </div>
   );

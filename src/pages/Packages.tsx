@@ -4,9 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Brain, Database as DbIcon, Cpu, Server, Zap, Star, Loader2, ShoppingCart, CheckCircle2, Package } from "lucide-react";
+import { Brain, Database as DbIcon, Cpu, Server, Zap, Star, Loader2, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AiPackage {
@@ -33,9 +32,6 @@ interface UserPackage {
 }
 
 const packageIcons = [Brain, DbIcon, Cpu, Server, Zap, Star];
-
-// Mock daily income data for display
-const dailyIncomeMap: Record<string, { daily: number; total: number }> = {};
 
 const Packages = () => {
   const { user } = useAuth();
@@ -71,6 +67,12 @@ const Packages = () => {
     if (!error) {
       await supabase.from("wallets").update({ balance: bal - price }).eq("user_id", user.id);
       await supabase.from("transactions").insert({ user_id: user.id, type: "purchase" as const, amount: price, status: "approved" as const, description: `Purchased ${pkg.name}` });
+      // Notification for purchase
+      await supabase.from("notifications").insert({
+        user_id: user.id, type: "money",
+        title: "Package Purchased",
+        description: `You successfully purchased ${pkg.name} for Rs ${price.toLocaleString()}. Daily income will be added automatically.`,
+      });
       toast.success(`Successfully purchased ${pkg.name}!`);
       const upRes = await supabase.from("user_packages").select("*, ai_packages(name, description)").eq("user_id", user.id).order("purchased_at", { ascending: false });
       setUserPackages((upRes.data || []) as UserPackage[]);
@@ -132,7 +134,6 @@ const Packages = () => {
                   isComingSoon || isSoldOut ? "bg-muted/60 opacity-60" : "bg-card shadow-neu"
                 )}
               >
-                {/* Icon area */}
                 <div className={cn(
                   "h-24 flex items-center justify-center relative",
                   isComingSoon || isSoldOut ? "bg-muted" : idx % 3 === 0 ? "gradient-primary" : idx % 3 === 1 ? "gradient-secondary" : "gradient-dark"
@@ -150,7 +151,6 @@ const Packages = () => {
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="p-3 flex flex-col flex-1">
                   <p className="text-xs font-heading font-bold text-foreground leading-tight line-clamp-2">{pkg.name}</p>
                   <p className="text-base font-heading font-bold text-primary mt-1">Rs.{price.toLocaleString()}</p>
@@ -239,10 +239,7 @@ const Packages = () => {
                           <span>{daysRemaining}d remaining</span>
                         </div>
                         <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full gradient-primary rounded-full transition-all"
-                            style={{ width: `${progressPct}%` }}
-                          />
+                          <div className="h-full gradient-primary rounded-full transition-all" style={{ width: `${progressPct}%` }} />
                         </div>
                       </div>
                       <div className="flex justify-between text-[10px] text-muted-foreground">
