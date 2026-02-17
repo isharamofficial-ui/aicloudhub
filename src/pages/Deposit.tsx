@@ -37,6 +37,12 @@ const Deposit = () => {
         user_id: user.id, type: "deposit" as const, amount: amt, status: "pending" as const,
         description: `Deposit via Bank Transfer${reference ? ` - ${reference}` : ""}`,
       });
+      // Create notification
+      await supabase.from("notifications").insert({
+        user_id: user.id, type: "money",
+        title: "Deposit Request Submitted",
+        description: `Your deposit of Rs ${amt.toLocaleString()} via bank transfer is pending approval.`,
+      });
     }
 
     setLoading(false);
@@ -121,14 +127,9 @@ const Deposit = () => {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Enter Amount (Rs)</Label>
             <Input
-              type="number"
-              min="1"
-              step="0.01"
-              placeholder="0.00"
+              type="number" min="1" step="0.01" placeholder="0.00"
               className="rounded-xl h-12 text-lg shadow-neu-inset bg-muted/30"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
+              value={amount} onChange={(e) => setAmount(e.target.value)} required
             />
           </div>
 
@@ -137,8 +138,7 @@ const Deposit = () => {
             <Input
               placeholder="e.g. TXN12345"
               className="rounded-xl h-12 shadow-neu-inset bg-muted/30"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
+              value={reference} onChange={(e) => setReference(e.target.value)}
             />
           </div>
 

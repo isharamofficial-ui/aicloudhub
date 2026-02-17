@@ -38,7 +38,6 @@ const AdminDeposits = () => {
     if (error) { toast.error("Failed to update"); setProcessing(null); return; }
 
     if (action === "approved") {
-      // Update wallet balance
       const { data: wallet } = await supabase.from("wallets").select("balance, total_deposited").eq("user_id", userId).maybeSingle();
       if (wallet) {
         await supabase.from("wallets").update({
@@ -46,15 +45,28 @@ const AdminDeposits = () => {
           total_deposited: Number(wallet.total_deposited) + amount,
         }).eq("user_id", userId);
       }
-      // Create transaction record
       await supabase.from("transactions").insert({
-        user_id: userId,
-        type: "deposit",
-        amount,
-        status: "approved",
-        description: "Deposit approved by admin",
-        reference_id: id,
+        user_id: userId, type: "deposit", amount, status: "approved",
+        description: "Deposit approved by admin", reference_id: id,
       });
+      // Notify user - approved
+      await supabase.from("notifications").insert({
+        user_id: userId, type: "money",
+        title: "Deposit Approved ✅",
+        description: `Your deposit of Rs ${amount.toLocaleString()} has been approved and credited to your wallet.`,
+      });
+    } else {
+      // Notify user - rejected
+      await supabase.from("notifications").insert({
+        user_id: userId, type: "money",
+        title: "Deposit Rejected ❌",
+        description: `Your deposit request of Rs ${amount.toLocaleString()} has been rejected. Please contact support for details.`,
+      });
+      // Decrease credit score by 5
+      const { data: profile } = await supabase.from("profiles").select("credit_score").eq("user_id", userId).maybeSingle();
+      if (profile) {
+        await supabase.from("profiles").update({ credit_score: Math.max(0, (profile.credit_score || 100) - 5) }).eq("user_id", userId);
+      }
     }
 
     toast.success(`Deposit ${action}`);
@@ -95,21 +107,10 @@ const AdminDeposits = () => {
               </div>
               {d.status === "pending" && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white"
-                    disabled={processing === d.id}
-                    onClick={() => handleAction(d.id, d.user_id, Number(d.amount), "approved")}
-                  >
+                  <Button size="sm" className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white" disabled={processing === d.id} onClick={() => handleAction(d.id, d.user_id, Number(d.amount), "approved")}>
                     <Check className="w-3 h-3 mr-1" />Approve
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="flex-1 rounded-xl"
-                    disabled={processing === d.id}
-                    onClick={() => handleAction(d.id, d.user_id, Number(d.amount), "rejected")}
-                  >
+                  <Button size="sm" variant="destructive" className="flex-1 rounded-xl" disabled={processing === d.id} onClick={() => handleAction(d.id, d.user_id, Number(d.amount), "rejected")}>
                     <X className="w-3 h-3 mr-1" />Reject
                   </Button>
                 </div>

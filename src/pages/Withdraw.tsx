@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowLeft, AlertCircle, Package } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 
@@ -21,19 +21,25 @@ const Withdraw = () => {
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [submitted, setSubmitted] = useState(false);
+  const [hasActivePackage, setHasActivePackage] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [walletRes, bankRes] = await Promise.all([
+      const [walletRes, bankRes, pkgRes, profileRes] = await Promise.all([
         supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle(),
         supabase.from("bank_accounts").select("bank_name, account_number").eq("user_id", user.id).eq("is_default", true).maybeSingle(),
+        supabase.from("user_packages").select("id").eq("user_id", user.id).eq("is_active", true).limit(1),
+        supabase.from("profiles").select("is_frozen").eq("user_id", user.id).maybeSingle(),
       ]);
       setBalance(walletRes.data?.balance ? Number(walletRes.data.balance) : 0);
       if (bankRes.data) {
         setBankName(bankRes.data.bank_name || "");
         setAccountNumber(bankRes.data.account_number || "");
       }
+      setHasActivePackage((pkgRes.data || []).length > 0);
+      setIsFrozen(profileRes.data?.is_frozen || false);
       setDataLoading(false);
     };
     fetchData();
@@ -41,12 +47,20 @@ const Withdraw = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isFrozen) { toast.error("Your account is frozen. Contact support."); return; }
+    if (!hasActivePackage) { toast.error("You need an active package to withdraw. Please purchase a package first."); return; }
     const amt = parseFloat(amount);
     if (!amt || amt < 1000) { toast.error("Minimum withdrawal: Rs 1,000"); return; }
     if (amt > balance) { toast.error("Insufficient balance"); return; }
     if (!accountNumber.trim() || !bankName.trim()) { toast.error("Please enter bank details"); return; }
     if (!user) return;
     setLoading(true);
+
+    // Deduct from wallet balance (freeze)
+    const { data: walletData } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
+    if (walletData) {
+      await supabase.from("wallets").update({ balance: Number(walletData.balance) - amt }).eq("user_id", user.id);
+    }
 
     // Save/update bank account
     const { data: bankData } = await supabase.from("bank_accounts").upsert({
@@ -62,6 +76,12 @@ const Withdraw = () => {
       await supabase.from("transactions").insert({
         user_id: user.id, type: "withdrawal" as const, amount: amt, status: "pending" as const,
         description: "Withdrawal request",
+      });
+      // Create notification
+      await supabase.from("notifications").insert({
+        user_id: user.id, type: "money",
+        title: "Withdrawal Request Submitted",
+        description: `Your withdrawal of Rs ${amt.toLocaleString()} is pending admin approval.`,
       });
     }
 
@@ -101,6 +121,26 @@ const Withdraw = () => {
       </div>
 
       <div className="px-4 space-y-5 pb-8">
+        {/* Frozen Account Warning */}
+        {isFrozen && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-2xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
+            <p className="text-sm text-destructive font-medium">Your account is frozen. Withdrawals are disabled. Contact support.</p>
+          </div>
+        )}
+
+        {/* No Package Warning */}
+        {!hasActivePackage && !isFrozen && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 flex items-center gap-3">
+            <Package className="w-5 h-5 text-yellow-600 shrink-0" />
+            <div>
+              <p className="text-sm text-yellow-600 font-medium">Active package required</p>
+              <p className="text-xs text-muted-foreground">You must have at least one active package to withdraw.</p>
+              <Link to="/packages" className="text-xs text-primary font-semibold underline">Browse Packages</Link>
+            </div>
+          </div>
+        )}
+
         {/* Balance Display */}
         <div className="gradient-secondary rounded-2xl p-5 text-secondary-foreground shadow-neu">
           <p className="text-sm opacity-80">Current Balance</p>
@@ -171,7 +211,7 @@ const Withdraw = () => {
             type="submit"
             className="w-full rounded-xl h-12 font-semibold text-base text-destructive-foreground"
             style={{ background: "linear-gradient(135deg, hsl(0 72% 51%), hsl(340 82% 52%))" }}
-            disabled={loading}
+            disabled={loading || isFrozen || !hasActivePackage}
           >
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Submit Withdrawal Request

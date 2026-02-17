@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarCheck, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -7,14 +10,104 @@ import { cn } from "@/lib/utils";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const DailySignIn = () => {
+  const { user } = useAuth();
   const [checkedIn, setCheckedIn] = useState(false);
-  const today = new Date().getDay(); // 0=Sun, 1=Mon...
-  const todayIdx = today === 0 ? 6 : today - 1; // convert to Mon=0
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [weekSignins, setWeekSignins] = useState<string[]>([]);
 
-  const handleCheckIn = () => {
+  const today = new Date().getDay();
+  const todayIdx = today === 0 ? 6 : today - 1;
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchSignins = async () => {
+      // Get this week's sign-ins (Mon to Sun)
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      monday.setHours(0, 0, 0, 0);
+
+      const { data } = await supabase
+        .from("daily_signins")
+        .select("signed_in_date")
+        .eq("user_id", user.id)
+        .gte("signed_in_date", monday.toISOString().split("T")[0])
+        .order("signed_in_date", { ascending: true });
+
+      const dates = (data || []).map((d: any) => d.signed_in_date);
+      setWeekSignins(dates);
+
+      // Check if already signed in today
+      const todayStr = new Date().toISOString().split("T")[0];
+      setCheckedIn(dates.includes(todayStr));
+      setLoading(false);
+    };
+    fetchSignins();
+  }, [user]);
+
+  const handleCheckIn = async () => {
+    if (!user || checkedIn) return;
+    setChecking(true);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const { error } = await supabase.from("daily_signins").insert({
+      user_id: user.id,
+      signed_in_date: todayStr,
+      reward_amount: 10,
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        toast.error("Already signed in today!");
+      } else {
+        toast.error("Failed to sign in");
+      }
+      setChecking(false);
+      return;
+    }
+
+    // Add Rs 10 to wallet
+    const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
+    if (wallet) {
+      await supabase.from("wallets").update({ balance: Number(wallet.balance) + 10 }).eq("user_id", user.id);
+    }
+
+    // Create notification
+    await supabase.from("notifications").insert({
+      user_id: user.id,
+      type: "money",
+      title: "Daily Sign-In Reward",
+      description: "You received Rs 10 for your daily check-in. Keep your streak going!",
+    });
+
     setCheckedIn(true);
+    setWeekSignins([...weekSignins, todayStr]);
     toast.success("Success! Rs 10 added to balance.");
+    setChecking(false);
   };
+
+  // Calculate streak from this week's sign-ins
+  const getStreak = () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const allDates = checkedIn ? [...new Set([...weekSignins, todayStr])] : weekSignins;
+    return allDates.length;
+  };
+
+  const isDaySignedIn = (dayIdx: number) => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const targetDate = new Date(now);
+    targetDate.setDate(now.getDate() + mondayOffset + dayIdx);
+    const dateStr = targetDate.toISOString().split("T")[0];
+    return weekSignins.includes(dateStr);
+  };
+
+  if (loading) return <div className="px-4 py-6 space-y-4"><Skeleton className="h-20 rounded-2xl" /><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-14 rounded-2xl" /></div>;
 
   return (
     <div className="animate-fade-in px-4 py-6 space-y-6">
@@ -32,6 +125,7 @@ const DailySignIn = () => {
         <div className="grid grid-cols-7 gap-2">
           {days.map((day, i) => {
             const isToday = i === todayIdx;
+            const signed = isDaySignedIn(i);
             const isPast = i < todayIdx;
             return (
               <div
@@ -39,8 +133,9 @@ const DailySignIn = () => {
                 className={cn(
                   "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all",
                   isToday && "gradient-primary text-primary-foreground shadow-lg scale-105",
-                  isPast && "bg-muted/50",
-                  !isToday && !isPast && "bg-card"
+                  signed && !isToday && "bg-success/10",
+                  !isToday && !signed && isPast && "bg-muted/50",
+                  !isToday && !signed && !isPast && "bg-card"
                 )}
               >
                 <span className={cn(
@@ -51,9 +146,9 @@ const DailySignIn = () => {
                 </span>
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
-                  isToday ? "bg-white/20 text-primary-foreground" : isPast ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"
+                  isToday ? "bg-white/20 text-primary-foreground" : signed ? "bg-success/20 text-success" : isPast ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"
                 )}>
-                  {isPast ? "✓" : i + 1}
+                  {signed ? "✓" : i + 1}
                 </div>
                 <span className={cn(
                   "text-[9px]",
@@ -70,7 +165,7 @@ const DailySignIn = () => {
       {/* Check In Button */}
       <Button
         onClick={handleCheckIn}
-        disabled={checkedIn}
+        disabled={checkedIn || checking}
         className={cn(
           "w-full rounded-2xl h-14 text-base font-heading font-bold shadow-lg transition-all",
           checkedIn
@@ -85,7 +180,7 @@ const DailySignIn = () => {
       {/* Streak info */}
       <div className="shadow-neu rounded-2xl bg-card p-4 text-center space-y-1">
         <p className="text-xs text-muted-foreground">🔥 Current Streak</p>
-        <p className="text-2xl font-heading font-bold text-foreground">{todayIdx + (checkedIn ? 1 : 0)} Days</p>
+        <p className="text-2xl font-heading font-bold text-foreground">{getStreak()} Days</p>
         <p className="text-[10px] text-muted-foreground">Sign in 7 consecutive days for a Rs.100 bonus!</p>
       </div>
     </div>

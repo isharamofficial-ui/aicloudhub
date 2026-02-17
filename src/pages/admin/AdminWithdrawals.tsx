@@ -45,12 +45,13 @@ const AdminWithdrawals = () => {
         }).eq("user_id", userId);
       }
       await supabase.from("transactions").insert({
-        user_id: userId,
-        type: "withdrawal",
-        amount,
-        status: "approved",
-        description: "Withdrawal approved by admin",
-        reference_id: id,
+        user_id: userId, type: "withdrawal", amount, status: "approved",
+        description: "Withdrawal approved by admin", reference_id: id,
+      });
+      await supabase.from("notifications").insert({
+        user_id: userId, type: "money",
+        title: "Withdrawal Approved ✅",
+        description: `Your withdrawal of Rs ${amount.toLocaleString()} has been processed successfully.`,
       });
     } else {
       // Refund the frozen balance back
@@ -59,6 +60,16 @@ const AdminWithdrawals = () => {
         await supabase.from("wallets").update({
           balance: Number(wallet.balance) + amount,
         }).eq("user_id", userId);
+      }
+      await supabase.from("notifications").insert({
+        user_id: userId, type: "money",
+        title: "Withdrawal Rejected ❌",
+        description: `Your withdrawal of Rs ${amount.toLocaleString()} was rejected. The amount has been returned to your wallet.`,
+      });
+      // Decrease credit score
+      const { data: profile } = await supabase.from("profiles").select("credit_score").eq("user_id", userId).maybeSingle();
+      if (profile) {
+        await supabase.from("profiles").update({ credit_score: Math.max(0, (profile.credit_score || 100) - 10) }).eq("user_id", userId);
       }
     }
 
@@ -102,21 +113,10 @@ const AdminWithdrawals = () => {
               {w.notes && <p className="text-xs text-muted-foreground mb-2">Note: {w.notes}</p>}
               {w.status === "pending" && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white"
-                    disabled={processing === w.id}
-                    onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "approved")}
-                  >
+                  <Button size="sm" className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white" disabled={processing === w.id} onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "approved")}>
                     <Check className="w-3 h-3 mr-1" />Approve
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="flex-1 rounded-xl"
-                    disabled={processing === w.id}
-                    onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "rejected")}
-                  >
+                  <Button size="sm" variant="destructive" className="flex-1 rounded-xl" disabled={processing === w.id} onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "rejected")}>
                     <X className="w-3 h-3 mr-1" />Reject
                   </Button>
                 </div>

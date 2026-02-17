@@ -29,6 +29,8 @@ const Settings = () => {
   const [frozenAmount, setFrozenAmount] = useState(0);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [totalPackagesPaid, setTotalPackagesPaid] = useState(0);
+  const [creditScore, setCreditScore] = useState(100);
+  const [isFrozen, setIsFrozen] = useState(false);
 
   // Password
   const [newPassword, setNewPassword] = useState("");
@@ -45,7 +47,7 @@ const Settings = () => {
       const todayISO = today.toISOString();
 
       const [profileRes, walletRes, frozenRes, todayComRes, userPkgRes] = await Promise.all([
-        supabase.from("profiles").select("display_name, phone").eq("user_id", userId).maybeSingle(),
+        supabase.from("profiles").select("display_name, phone, credit_score, is_frozen").eq("user_id", userId).maybeSingle(),
         supabase.from("wallets").select("balance, total_deposited, total_withdrawn, total_commission").eq("user_id", userId).maybeSingle(),
         // Frozen = sum of pending withdrawal amounts
         supabase.from("withdrawal_requests").select("amount").eq("user_id", userId).eq("status", "pending"),
@@ -55,7 +57,12 @@ const Settings = () => {
         supabase.from("user_packages").select("price_paid").eq("user_id", userId),
       ]);
 
-      if (profileRes.data) { setDisplayName(profileRes.data.display_name || ""); setPhone(profileRes.data.phone || ""); }
+      if (profileRes.data) {
+        setDisplayName(profileRes.data.display_name || "");
+        setPhone(profileRes.data.phone || "");
+        setCreditScore(profileRes.data.credit_score ?? 100);
+        setIsFrozen(profileRes.data.is_frozen || false);
+      }
       if (walletRes.data) setWalletData(walletRes.data as any);
 
       const frozen = (frozenRes.data || []).reduce((s, w) => s + Number(w.amount), 0);
@@ -104,10 +111,8 @@ const Settings = () => {
     ? Math.min(100, Math.round(((walletData.total_deposited - currentThreshold) / (nextThreshold - currentThreshold)) * 100))
     : 100;
 
-  // Credit score: 100% if no rejected withdrawals, deduct for rejections
-  // Simple: 100% if total_withdrawn > 0 or no issues
-  const creditScore = 100;
-  const creditLabel = "Excellent";
+  const creditLabel = creditScore >= 80 ? "Excellent" : creditScore >= 50 ? "Good" : creditScore >= 30 ? "Fair" : "Poor";
+  const creditColor = creditScore >= 80 ? "text-emerald-500" : creditScore >= 50 ? "text-yellow-500" : "text-destructive";
 
   const now = new Date();
   const serverTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
@@ -167,10 +172,15 @@ const Settings = () => {
             </div>
           </div>
 
+          {isFrozen && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-3 py-2 text-xs text-destructive font-medium">
+              🔒 Account Frozen — Contact support
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-muted/30 rounded-xl px-3 py-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+            <ShieldCheck className={`w-4 h-4 ${creditColor} shrink-0`} />
             <span className="text-xs text-muted-foreground">Credit Score:</span>
-            <span className="text-xs font-bold text-emerald-500">{creditScore}% {creditLabel}</span>
+            <span className={`text-xs font-bold ${creditColor}`}>{creditScore}% {creditLabel}</span>
           </div>
         </div>
 

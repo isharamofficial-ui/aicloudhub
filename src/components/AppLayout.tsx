@@ -7,7 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import {
   Home, Package, ShoppingCart, Users, User, Bell, X,
 } from "lucide-react";
-import { notifications, typeEmoji } from "@/data/notifications";
+import { formatDistanceToNow } from "date-fns";
+
+const typeEmoji: Record<string, string> = {
+  money: "💰",
+  security: "🔒",
+  system: "📢",
+  promo: "🎁",
+  update: "🚀",
+};
 
 const bottomNav = [
   { label: "Home", icon: Home, path: "/dashboard" },
@@ -17,23 +25,31 @@ const bottomNav = [
   { label: "My", icon: User, path: "/settings" },
 ];
 
-const popupNotifications = notifications.slice(0, 3);
-
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [showNotifs, setShowNotifs] = useState(false);
   const [vipLevel, setVipLevel] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [recentNotifs, setRecentNotifs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("wallets").select("total_deposited").eq("user_id", user.id).maybeSingle().then(({ data }) => {
-      const deposited = data?.total_deposited ? Number(data.total_deposited) : 0;
+    const fetchData = async () => {
+      const [walletRes, unreadRes, recentRes] = await Promise.all([
+        supabase.from("wallets").select("total_deposited").eq("user_id", user.id).maybeSingle(),
+        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_read", false),
+        supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(3),
+      ]);
+      const deposited = walletRes.data?.total_deposited ? Number(walletRes.data.total_deposited) : 0;
       const thresholds = [0, 1000, 5000, 15000, 50000, 100000];
       setVipLevel(thresholds.filter((t) => deposited >= t).length - 1);
-    });
-  }, [user]);
+      setUnreadCount(unreadRes.count || 0);
+      setRecentNotifs(recentRes.data || []);
+    };
+    fetchData();
+  }, [user, location.pathname]);
 
   const maskedEmail = user?.email
     ? user.email.split("@")[0].slice(0, 3) + "***@" + user.email.split("@")[1]
@@ -59,7 +75,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               className="relative w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center"
             >
               <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-destructive rounded-full border-2 border-card" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-destructive rounded-full border-2 border-card flex items-center justify-center">
+                  <span className="text-[9px] text-destructive-foreground font-bold">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -80,16 +100,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               </button>
             </div>
             <div className="space-y-3">
-              {popupNotifications.map((n) => (
+              {recentNotifs.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No notifications</p>}
+              {recentNotifs.map((n) => (
                 <div key={n.id} className="shadow-neu-inset rounded-xl bg-muted/20 p-3 space-y-1">
                   <div className="flex items-start gap-2.5">
-                    <span className="text-sm mt-0.5">{typeEmoji[n.type]}</span>
+                    <span className="text-sm mt-0.5">{typeEmoji[n.type] || "📢"}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-heading font-bold text-foreground truncate">{n.title}</p>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">{n.time}</span>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">{n.desc}</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">{n.description}</p>
                     </div>
                   </div>
                 </div>

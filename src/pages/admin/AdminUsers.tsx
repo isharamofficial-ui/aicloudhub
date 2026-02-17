@@ -4,9 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Search, User, Wallet } from "lucide-react";
+import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface UserRow {
@@ -15,6 +17,8 @@ interface UserRow {
   phone: string | null;
   referral_code: string | null;
   created_at: string;
+  is_frozen: boolean;
+  credit_score: number;
   wallet?: { balance: number; total_deposited: number; total_withdrawn: number; total_commission: number };
   role?: string;
 }
@@ -25,6 +29,9 @@ const AdminUsers = () => {
   const [search, setSearch] = useState("");
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState("");
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifDesc, setNotifDesc] = useState("");
+  const [sending, setSending] = useState(false);
 
   const fetchUsers = async () => {
     const [profilesRes, walletsRes, rolesRes] = await Promise.all([
@@ -36,12 +43,14 @@ const AdminUsers = () => {
     const walletMap = new Map((walletsRes.data || []).map((w) => [w.user_id, w]));
     const roleMap = new Map((rolesRes.data || []).map((r) => [r.user_id, r.role]));
 
-    const rows: UserRow[] = (profilesRes.data || []).map((p) => ({
+    const rows: UserRow[] = (profilesRes.data || []).map((p: any) => ({
       user_id: p.user_id,
       display_name: p.display_name,
       phone: p.phone,
       referral_code: p.referral_code,
       created_at: p.created_at,
+      is_frozen: p.is_frozen || false,
+      credit_score: p.credit_score ?? 100,
       wallet: walletMap.get(p.user_id) as any,
       role: roleMap.get(p.user_id) || "user",
     }));
@@ -59,6 +68,46 @@ const AdminUsers = () => {
     toast.success("Balance updated");
     setEditBalance("");
     fetchUsers();
+  };
+
+  const handleToggleFreeze = async (userId: string, currentFrozen: boolean) => {
+    const newStatus = !currentFrozen;
+    await supabase.from("profiles").update({ is_frozen: newStatus }).eq("user_id", userId);
+    await supabase.from("notifications").insert({
+      user_id: userId, type: "security",
+      title: newStatus ? "Account Frozen 🔒" : "Account Unfrozen ✅",
+      description: newStatus
+        ? "Your account has been frozen by admin. Withdrawals are disabled. Contact support."
+        : "Your account has been unfrozen. You can now use all features normally.",
+    });
+    toast.success(newStatus ? "Account frozen" : "Account unfrozen");
+    fetchUsers();
+  };
+
+  const handleDecreaseCreditScore = async (userId: string, currentScore: number) => {
+    const newScore = Math.max(0, currentScore - 10);
+    await supabase.from("profiles").update({ credit_score: newScore }).eq("user_id", userId);
+    await supabase.from("notifications").insert({
+      user_id: userId, type: "security",
+      title: "Credit Score Decreased",
+      description: `Your credit score has been decreased to ${newScore}%. Please maintain good account behavior.`,
+    });
+    toast.success(`Credit score decreased to ${newScore}%`);
+    fetchUsers();
+  };
+
+  const handleSendNotification = async (userId: string) => {
+    if (!notifTitle.trim()) { toast.error("Title required"); return; }
+    setSending(true);
+    await supabase.from("notifications").insert({
+      user_id: userId, type: "system",
+      title: notifTitle.trim(),
+      description: notifDesc.trim() || null,
+    });
+    toast.success("Notification sent!");
+    setNotifTitle("");
+    setNotifDesc("");
+    setSending(false);
   };
 
   const filtered = users.filter((u) => {
@@ -82,7 +131,7 @@ const AdminUsers = () => {
 
       <div className="space-y-3">
         {filtered.map((u) => (
-          <Card key={u.user_id} className="shadow-neu">
+          <Card key={u.user_id} className={`shadow-neu ${u.is_frozen ? 'ring-2 ring-destructive/50' : ''}`}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpandedUser(expandedUser === u.user_id ? null : u.user_id)}>
                 <div className="flex items-center gap-3">
@@ -90,8 +139,11 @@ const AdminUsers = () => {
                     <User className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">{u.display_name || "No name"}</p>
-                    <p className="text-[10px] text-muted-foreground">ID: {u.user_id.slice(0, 8)}...</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold">{u.display_name || "No name"}</p>
+                      {u.is_frozen && <Badge className="text-[9px] bg-destructive/20 text-destructive">Frozen</Badge>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">ID: {u.user_id.slice(0, 8)}... | Credit: {u.credit_score}%</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -110,10 +162,32 @@ const AdminUsers = () => {
                     <div><span className="text-muted-foreground">Commission:</span> <span className="font-medium">Rs {(u.wallet?.total_commission ?? 0).toLocaleString()}</span></div>
                     <div><span className="text-muted-foreground">Joined:</span> <span className="font-medium">{new Date(u.created_at).toLocaleDateString()}</span></div>
                   </div>
+
+                  {/* Balance edit */}
                   <div className="flex gap-2">
                     <Input type="number" placeholder="New balance" className="rounded-xl h-9 text-sm" value={editBalance} onChange={(e) => setEditBalance(e.target.value)} />
                     <Button size="sm" className="rounded-xl gradient-primary text-primary-foreground" onClick={() => handleUpdateBalance(u.user_id)}>
                       <Wallet className="w-3 h-3 mr-1" />Set
+                    </Button>
+                  </div>
+
+                  {/* Admin actions */}
+                  <div className="flex gap-2">
+                    <Button size="sm" variant={u.is_frozen ? "default" : "destructive"} className="flex-1 rounded-xl text-xs" onClick={() => handleToggleFreeze(u.user_id, u.is_frozen)}>
+                      {u.is_frozen ? <><ShieldCheck className="w-3 h-3 mr-1" />Unfreeze</> : <><ShieldAlert className="w-3 h-3 mr-1" />Freeze</>}
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 rounded-xl text-xs border-destructive text-destructive" onClick={() => handleDecreaseCreditScore(u.user_id, u.credit_score)}>
+                      Credit -10
+                    </Button>
+                  </div>
+
+                  {/* Send notification */}
+                  <div className="space-y-2 bg-muted/30 rounded-xl p-3">
+                    <p className="text-xs font-bold text-foreground">Send Notification</p>
+                    <Input placeholder="Title" className="rounded-xl h-8 text-xs" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} />
+                    <Textarea placeholder="Description (optional)" className="rounded-xl text-xs min-h-[60px]" value={notifDesc} onChange={(e) => setNotifDesc(e.target.value)} />
+                    <Button size="sm" className="w-full rounded-xl gradient-primary text-primary-foreground text-xs" onClick={() => handleSendNotification(u.user_id)} disabled={sending}>
+                      {sending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}Send
                     </Button>
                   </div>
                 </div>
