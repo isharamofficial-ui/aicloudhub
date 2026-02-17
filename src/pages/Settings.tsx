@@ -1,23 +1,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, User, Lock, Building2, Info, Headphones, Trash2, Plus } from "lucide-react";
+import {
+  Loader2, User, Lock, CreditCard, Download, Headphones,
+  Info, LogOut, ChevronRight, Shield
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface BankAccount {
-  id: string;
-  bank_name: string;
-  account_number: string;
-  iban: string | null;
-  is_default: boolean;
-}
+import { cn } from "@/lib/utils";
 
 const Settings = () => {
   const { user, signOut } = useAuth();
@@ -25,32 +19,21 @@ const Settings = () => {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   // Password
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPw, setChangingPw] = useState(false);
 
-  // Bank accounts
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [newBank, setNewBank] = useState({ bank_name: "", account_number: "", iban: "" });
-  const [addingBank, setAddingBank] = useState(false);
-
   useEffect(() => {
     if (!user) return;
-    const fetchData = async () => {
-      const [profileRes, bankRes] = await Promise.all([
-        supabase.from("profiles").select("display_name, phone").eq("user_id", user.id).maybeSingle(),
-        supabase.from("bank_accounts").select("*").eq("user_id", user.id).order("created_at"),
-      ]);
-      if (profileRes.data) {
-        setDisplayName(profileRes.data.display_name || "");
-        setPhone(profileRes.data.phone || "");
-      }
-      setBankAccounts((bankRes.data || []) as BankAccount[]);
+    const fetchProfile = async () => {
+      const { data } = await supabase.from("profiles").select("display_name, phone").eq("user_id", user.id).maybeSingle();
+      if (data) { setDisplayName(data.display_name || ""); setPhone(data.phone || ""); }
       setLoading(false);
     };
-    fetchData();
+    fetchProfile();
   }, [user]);
 
   const handleSaveProfile = async () => {
@@ -67,153 +50,127 @@ const Settings = () => {
     setChangingPw(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setChangingPw(false);
-    if (error) toast.error(error.message); else { toast.success("Password changed!"); setNewPassword(""); setConfirmPassword(""); }
+    if (error) toast.error(error.message); else { toast.success("Password changed!"); setNewPassword(""); setConfirmPassword(""); setActiveSection(null); }
   };
 
-  const handleAddBank = async () => {
-    if (!user || !newBank.bank_name.trim() || !newBank.account_number.trim()) { toast.error("Bank name and account number required"); return; }
-    setAddingBank(true);
-    const { error, data } = await supabase.from("bank_accounts").insert({
-      user_id: user.id, bank_name: newBank.bank_name.trim(), account_number: newBank.account_number.trim(), iban: newBank.iban.trim() || null,
-    }).select().single();
-    setAddingBank(false);
-    if (error) toast.error("Failed to add bank account"); else {
-      setBankAccounts([...bankAccounts, data as BankAccount]);
-      setNewBank({ bank_name: "", account_number: "", iban: "" });
-      toast.success("Bank account added!");
-    }
-  };
+  const maskedPhone = phone || user?.phone || "7******402";
 
-  const handleDeleteBank = async (id: string) => {
-    const { error } = await supabase.from("bank_accounts").delete().eq("id", id);
-    if (error) toast.error("Failed to delete"); else {
-      setBankAccounts(bankAccounts.filter((b) => b.id !== id));
-      toast.success("Bank account removed");
-    }
-  };
-
-  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 rounded-xl" /></div>;
+  if (loading) return <div className="px-4 py-4 space-y-4"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-64 rounded-2xl" /></div>;
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-2xl">
-      <h1 className="text-2xl font-heading font-bold text-foreground">Settings</h1>
+    <div className="animate-fade-in">
+      <div className="px-4 py-4">
+        <h1 className="text-lg font-heading font-bold text-foreground mb-4">Profile</h1>
+      </div>
 
-      <Tabs defaultValue="profile">
-        <TabsList>
-          <TabsTrigger value="profile"><User className="w-4 h-4 mr-1" />Profile</TabsTrigger>
-          <TabsTrigger value="security"><Lock className="w-4 h-4 mr-1" />Security</TabsTrigger>
-          <TabsTrigger value="bank"><Building2 className="w-4 h-4 mr-1" />Bank Details</TabsTrigger>
-          <TabsTrigger value="about"><Info className="w-4 h-4 mr-1" />About</TabsTrigger>
-        </TabsList>
+      <div className="px-4 space-y-5 pb-8">
+        {/* User Card */}
+        <div className="shadow-neu rounded-2xl bg-card p-5 flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <User className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-lg font-heading font-bold text-foreground">{displayName || "User"}</p>
+            <p className="text-sm text-muted-foreground font-mono">{maskedPhone}</p>
+            <Badge className="gradient-primary text-primary-foreground text-[10px] mt-1">VIP Level 1</Badge>
+          </div>
+        </div>
 
-        <TabsContent value="profile" className="mt-6">
-          <Card className="shadow-card border-border/50">
-            <CardHeader>
-              <CardTitle className="font-heading">Edit Profile</CardTitle>
-              <CardDescription>Update your personal information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={user?.email || ""} disabled className="bg-muted" />
+        {/* Action Grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Bank Info", icon: CreditCard, key: "bank" },
+            { label: "Change Password", icon: Lock, key: "password" },
+            { label: "Download App", icon: Download, key: "download" },
+            { label: "Support (සහය)", icon: Headphones, key: "support" },
+            { label: "About Us", icon: Info, key: "about" },
+            { label: "Security", icon: Shield, key: "security" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setActiveSection(activeSection === item.key ? null : item.key)}
+              className={cn(
+                "shadow-neu rounded-2xl bg-card p-4 flex flex-col items-center gap-2 transition-all",
+                activeSection === item.key && "ring-2 ring-primary"
+              )}
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <item.icon className="w-5 h-5 text-primary" />
               </div>
-              <div className="space-y-2">
-                <Label>Display Name</Label>
-                <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 890" />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleSaveProfile} className="gradient-primary text-primary-foreground" disabled={saving}>
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Save Changes
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-6">
-          <Card className="shadow-card border-border/50">
-            <CardHeader>
-              <CardTitle className="font-heading">Change Password</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>New Password</Label>
-                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Confirm Password</Label>
-                <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleChangePassword} className="gradient-primary text-primary-foreground" disabled={changingPw}>
-                {changingPw && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Update Password
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="bank" className="mt-6 space-y-4">
-          {bankAccounts.map((ba) => (
-            <Card key={ba.id} className="shadow-card border-border/50">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{ba.bank_name}</p>
-                  <p className="text-sm text-muted-foreground">****{ba.account_number.slice(-4)}{ba.iban ? ` • ${ba.iban}` : ""}</p>
-                </div>
-                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteBank(ba.id)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </CardContent>
-            </Card>
+              <span className="text-[10px] text-muted-foreground text-center leading-tight">{item.label}</span>
+            </button>
           ))}
-          <Card className="shadow-card border-border/50">
-            <CardHeader><CardTitle className="text-lg font-heading">Add Bank Account</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Bank Name</Label>
-                <Input value={newBank.bank_name} onChange={(e) => setNewBank({ ...newBank, bank_name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Account Number</Label>
-                <Input value={newBank.account_number} onChange={(e) => setNewBank({ ...newBank, account_number: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>IBAN (optional)</Label>
-                <Input value={newBank.iban} onChange={(e) => setNewBank({ ...newBank, iban: e.target.value })} />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleAddBank} className="gradient-primary text-primary-foreground" disabled={addingBank}>
-                {addingBank ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}Add Bank Account
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="about" className="mt-6 space-y-4">
-          <Card className="shadow-card border-border/50">
-            <CardContent className="p-6 space-y-4">
-              <div>
-                <h3 className="font-heading font-bold text-lg">About NexusAI</h3>
-                <p className="text-muted-foreground mt-1">NexusAI is a premium AI services marketplace providing cutting-edge artificial intelligence solutions for businesses and individuals.</p>
+        {/* Password Section */}
+        {activeSection === "password" && (
+          <div className="shadow-neu rounded-2xl bg-card p-5 space-y-4 animate-fade-in">
+            <h3 className="text-sm font-heading font-bold text-foreground">Change Password</h3>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">New Password</Label>
+                <Input type="password" className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
               </div>
-              <Separator />
-              <div>
-                <h3 className="font-heading font-bold text-lg flex items-center gap-2"><Headphones className="w-5 h-5 text-primary" /> Contact Support</h3>
-                <p className="text-muted-foreground mt-1">Email: support@nexusai.com</p>
-                <p className="text-muted-foreground">Available 24/7</p>
+              <div className="space-y-1">
+                <Label className="text-xs">Confirm Password</Label>
+                <Input type="password" className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </div>
-              <Separator />
-              <Button variant="destructive" onClick={signOut} className="w-full">Logout</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+            <Button onClick={handleChangePassword} className="w-full rounded-xl gradient-primary text-primary-foreground" disabled={changingPw}>
+              {changingPw && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Update Password
+            </Button>
+          </div>
+        )}
+
+        {/* About Section */}
+        {activeSection === "about" && (
+          <div className="shadow-neu rounded-2xl bg-card p-5 space-y-3 animate-fade-in">
+            <h3 className="text-sm font-heading font-bold text-foreground">About AICloudHub</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              AICloudHub is a premium AI services marketplace providing cutting-edge artificial intelligence solutions.
+              Rent GPU clusters, access vector databases, and earn through our referral program.
+            </p>
+            <p className="text-xs text-muted-foreground">support@aicloudhub.com</p>
+          </div>
+        )}
+
+        {/* Support Section */}
+        {activeSection === "support" && (
+          <div className="shadow-neu rounded-2xl bg-card p-5 space-y-3 animate-fade-in">
+            <h3 className="text-sm font-heading font-bold text-foreground">Customer Support (සහය)</h3>
+            <p className="text-xs text-muted-foreground">Email: support@aicloudhub.com</p>
+            <p className="text-xs text-muted-foreground">Available 24/7</p>
+          </div>
+        )}
+
+        {/* Edit Profile */}
+        <div className="shadow-neu rounded-2xl bg-card p-5 space-y-4">
+          <h3 className="text-sm font-heading font-bold text-foreground">Edit Profile</h3>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Display Name</Label>
+              <Input className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Phone</Label>
+              <Input className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+94 7X XXX XXXX" />
+            </div>
+          </div>
+          <Button onClick={handleSaveProfile} className="w-full rounded-xl gradient-primary text-primary-foreground" disabled={saving}>
+            {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Save Changes
+          </Button>
+        </div>
+
+        {/* Logout */}
+        <Button
+          onClick={signOut}
+          variant="outline"
+          className="w-full rounded-xl h-12 border-destructive text-destructive hover:bg-destructive/10 font-semibold"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Log Out
+        </Button>
+      </div>
     </div>
   );
 };
