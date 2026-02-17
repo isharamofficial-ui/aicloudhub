@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 
@@ -34,8 +34,6 @@ const AdminUsers = () => {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifDesc, setNotifDesc] = useState("");
   const [sending, setSending] = useState(false);
-  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [banDialog, setBanDialog] = useState<{ users: UserRow[]; mode: "bulk" | "single"; currentIndex: number } | null>(null);
   const [banning, setBanning] = useState(false);
 
@@ -82,13 +80,12 @@ const AdminUsers = () => {
 
   const executeBan = async (userId: string, displayName: string | null) => {
     setBanning(true);
-    await supabase.from("profiles").update({ is_frozen: true, ban_count: (users.find(u => u.user_id === userId)?.ban_count || 0) + 1 }).eq("user_id", userId);
-    await supabase.from("notifications").insert({
-      user_id: userId, type: "security",
-      title: "Account Frozen 🔒",
-      description: "Your account has been frozen by admin. Withdrawals are disabled. Contact support.",
-    });
-    toast.success(`${displayName || "User"} banned`);
+    const { data, error } = await supabase.rpc("ban_user", { p_user_id: userId });
+    if (error || (data && !(data as any).success)) {
+      toast.error((data as any)?.error || error?.message || "Ban failed");
+    } else {
+      toast.success(`${displayName || "User"} banned (Credit: ${(data as any).new_credit_score}%)`);
+    }
     setBanning(false);
     fetchUsers();
   };
@@ -145,27 +142,7 @@ const AdminUsers = () => {
     setSending(false);
   };
 
-  const handleDeleteUser = async () => {
-    if (!deleteUserId) return;
-    setDeleting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ user_id: deleteUserId }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
-      toast.success("User deleted successfully");
-      // Remove from list immediately
-      setUsers(prev => prev.filter(u => u.user_id !== deleteUserId));
-      setDeleteUserId(null);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete user");
-    }
-    setDeleting(false);
-  };
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -281,9 +258,6 @@ const AdminUsers = () => {
                         fetchUsers();
                       }}>
                       <Crown className="w-3 h-3 mr-1" />{u.role === "admin" ? "Remove Admin" : "Make Admin"}
-                    </Button>
-                    <Button size="sm" variant="destructive" className="flex-1 rounded-xl text-xs" onClick={() => setDeleteUserId(u.user_id)}>
-                      <Trash2 className="w-3 h-3 mr-1" />Delete
                     </Button>
                   </div>
 
@@ -419,21 +393,6 @@ const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation dialog */}
-      <Dialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>This will permanently delete this user and all their data. If the user is currently logged in, they will be immediately logged out. This action cannot be undone.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
-              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Delete Forever
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

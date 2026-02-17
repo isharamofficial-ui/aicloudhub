@@ -635,6 +635,7 @@ export type Database = {
     }
     Functions: {
       approve_deposit: { Args: { p_deposit_id: string }; Returns: Json }
+      ban_user: { Args: { p_user_id: string }; Returns: Json }
       daily_checkin: { Args: never; Returns: Json }
       generate_referral_code: { Args: never; Returns: string }
       has_role: {
