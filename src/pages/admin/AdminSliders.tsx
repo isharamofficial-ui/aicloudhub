@@ -45,7 +45,7 @@ const AdminSliders = () => {
   };
 
   const handleAdd = async () => {
-    if (!form.title.trim()) { toast.error("Title required"); return; }
+    // Title is now optional - allow image-only banners
     setSaving(true);
 
     let imageUrl: string | null = null;
@@ -59,7 +59,7 @@ const AdminSliders = () => {
     }
 
     const { error } = await supabase.from("slider_banners").insert({
-      title: form.title.trim(),
+      title: form.title.trim() || "Banner",
       subtitle: form.subtitle.trim() || null,
       gradient: form.gradient,
       sort_order: parseInt(form.sort_order) || 0,
@@ -104,7 +104,7 @@ const AdminSliders = () => {
       {showAdd && (
         <Card className="shadow-neu animate-fade-in">
           <CardContent className="p-4 space-y-3">
-            <div className="space-y-1"><Label className="text-xs">Title *</Label><Input className="rounded-xl h-9" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. New User Bonus!" /></div>
+            <div className="space-y-1"><Label className="text-xs">Title (optional)</Label><Input className="rounded-xl h-9" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. New User Bonus!" /></div>
             <div className="space-y-1"><Label className="text-xs">Subtitle</Label><Input className="rounded-xl h-9" value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} placeholder="e.g. Get Rs.100 Free" /></div>
             
             {/* Image Upload */}

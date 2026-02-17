@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface UserRow {
@@ -21,6 +21,7 @@ interface UserRow {
   credit_score: number;
   wallet?: { balance: number; total_deposited: number; total_withdrawn: number; total_commission: number };
   role?: string;
+  bank?: { bank_name: string; account_number: string; iban: string | null } | null;
 }
 
 const AdminUsers = () => {
@@ -34,14 +35,16 @@ const AdminUsers = () => {
   const [sending, setSending] = useState(false);
 
   const fetchUsers = async () => {
-    const [profilesRes, walletsRes, rolesRes] = await Promise.all([
+    const [profilesRes, walletsRes, rolesRes, banksRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("wallets").select("*"),
       supabase.from("user_roles").select("*"),
+      supabase.from("bank_accounts").select("user_id, bank_name, account_number, iban").eq("is_default", true),
     ]);
 
     const walletMap = new Map((walletsRes.data || []).map((w) => [w.user_id, w]));
     const roleMap = new Map((rolesRes.data || []).map((r) => [r.user_id, r.role]));
+    const bankMap = new Map((banksRes.data || []).map((b: any) => [b.user_id, b]));
 
     const rows: UserRow[] = (profilesRes.data || []).map((p: any) => ({
       user_id: p.user_id,
@@ -53,6 +56,7 @@ const AdminUsers = () => {
       credit_score: p.credit_score ?? 100,
       wallet: walletMap.get(p.user_id) as any,
       role: roleMap.get(p.user_id) || "user",
+      bank: bankMap.get(p.user_id) || null,
     }));
     setUsers(rows);
     setLoading(false);
@@ -110,29 +114,34 @@ const AdminUsers = () => {
     setSending(false);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied!");
+  };
+
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     return !q || (u.display_name?.toLowerCase().includes(q)) || u.user_id.includes(q) || (u.phone?.includes(q));
   });
 
-  if (loading) return <div className="p-4 space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-20" />)}</div>;
+  if (loading) return <div className="p-6 space-y-4">{[1,2,3,4].map(i => <Skeleton key={i} className="h-20" />)}</div>;
 
   return (
-    <div className="p-4 space-y-4 animate-fade-in">
+    <div className="p-6 space-y-6 animate-fade-in max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <Link to="/admin"><Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button></Link>
-        <h1 className="text-xl font-heading font-bold text-foreground">Users ({users.length})</h1>
+        <h1 className="text-2xl font-heading font-bold text-foreground">Users ({users.length})</h1>
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input className="pl-9 rounded-xl" placeholder="Search by name, ID, phone..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map((u) => (
           <Card key={u.user_id} className={`shadow-neu ${u.is_frozen ? 'ring-2 ring-destructive/50' : ''}`}>
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpandedUser(expandedUser === u.user_id ? null : u.user_id)}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -153,7 +162,7 @@ const AdminUsers = () => {
               </div>
 
               {expandedUser === u.user_id && (
-                <div className="mt-4 pt-4 border-t border-border space-y-3 animate-fade-in">
+                <div className="mt-4 pt-4 border-t border-border space-y-4 animate-fade-in">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div><span className="text-muted-foreground">Phone:</span> <span className="font-medium">{u.phone || "N/A"}</span></div>
                     <div><span className="text-muted-foreground">Referral:</span> <span className="font-medium">{u.referral_code || "N/A"}</span></div>
@@ -162,6 +171,29 @@ const AdminUsers = () => {
                     <div><span className="text-muted-foreground">Commission:</span> <span className="font-medium">Rs {(u.wallet?.total_commission ?? 0).toLocaleString()}</span></div>
                     <div><span className="text-muted-foreground">Joined:</span> <span className="font-medium">{new Date(u.created_at).toLocaleDateString()}</span></div>
                   </div>
+
+                  {/* Bank Details */}
+                  {u.bank && (
+                    <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+                      <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-primary" /> Saved Bank Details</p>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs bg-card rounded-lg px-3 py-2">
+                          <div><span className="text-muted-foreground">Bank: </span><span className="font-semibold text-foreground">{u.bank.bank_name}</span></div>
+                          <button onClick={() => copyToClipboard(u.bank!.bank_name)} className="text-primary hover:text-primary/80"><Copy className="w-3.5 h-3.5" /></button>
+                        </div>
+                        <div className="flex items-center justify-between text-xs bg-card rounded-lg px-3 py-2">
+                          <div><span className="text-muted-foreground">A/C: </span><span className="font-mono font-bold text-foreground tracking-wide">{u.bank.account_number}</span></div>
+                          <button onClick={() => copyToClipboard(u.bank!.account_number)} className="text-primary hover:text-primary/80"><Copy className="w-3.5 h-3.5" /></button>
+                        </div>
+                        {u.bank.iban && (
+                          <div className="flex items-center justify-between text-xs bg-card rounded-lg px-3 py-2">
+                            <div><span className="text-muted-foreground">IBAN: </span><span className="font-mono font-bold text-foreground">{u.bank.iban}</span></div>
+                            <button onClick={() => copyToClipboard(u.bank!.iban!)} className="text-primary hover:text-primary/80"><Copy className="w-3.5 h-3.5" /></button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Balance edit */}
                   <div className="flex gap-2">
