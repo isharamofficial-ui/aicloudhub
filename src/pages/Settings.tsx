@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   Loader2, User, Lock, CreditCard, Download, Headphones,
-  Info, LogOut, Settings as SettingsIcon, Gift, Users, PieChart,
+  Info, LogOut, Gift, Users, PieChart,
   Tag, Bell, ArrowDownToLine, ArrowUpFromLine, CloudDownload,
   ShieldCheck
 } from "lucide-react";
@@ -115,7 +115,7 @@ const Settings = () => {
               onClick={() => setActiveSection(activeSection === "edit" ? null : "edit")}
               className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center shrink-0"
             >
-              <SettingsIcon className="w-5 h-5 text-muted-foreground" />
+              <User className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
 
