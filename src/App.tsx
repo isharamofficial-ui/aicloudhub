@@ -22,6 +22,7 @@ import DailySignIn from "./pages/DailySignIn";
 import About from "./pages/About";
 import Redeem from "./pages/Redeem";
 import Notifications from "./pages/Notifications";
+import CommissionDetails from "./pages/CommissionDetails";
 import BankInfo from "./pages/BankInfo";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/redeem" element={<ProtectedPage><Redeem /></ProtectedPage>} />
             <Route path="/notifications" element={<ProtectedPage><Notifications /></ProtectedPage>} />
             <Route path="/bank-info" element={<ProtectedPage><BankInfo /></ProtectedPage>} />
+            <Route path="/commission-details" element={<ProtectedPage><CommissionDetails /></ProtectedPage>} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminPage><AdminDashboard /></AdminPage>} />
             <Route path="/admin/users" element={<AdminPage><AdminUsers /></AdminPage>} />
