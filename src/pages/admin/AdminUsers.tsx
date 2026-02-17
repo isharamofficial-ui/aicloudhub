@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown } from "lucide-react";
+import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 
 interface UserRow {
@@ -33,6 +34,8 @@ const AdminUsers = () => {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifDesc, setNotifDesc] = useState("");
   const [sending, setSending] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = async () => {
     const [profilesRes, walletsRes, rolesRes, banksRes] = await Promise.all([
@@ -112,6 +115,27 @@ const AdminUsers = () => {
     setNotifTitle("");
     setNotifDesc("");
     setSending(false);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return;
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ user_id: deleteUserId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      toast.success("User deleted successfully");
+      setDeleteUserId(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete user");
+    }
+    setDeleting(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -224,6 +248,9 @@ const AdminUsers = () => {
                       }}>
                       <Crown className="w-3 h-3 mr-1" />{u.role === "admin" ? "Remove Admin" : "Make Admin"}
                     </Button>
+                    <Button size="sm" variant="destructive" className="flex-1 rounded-xl text-xs" onClick={() => setDeleteUserId(u.user_id)}>
+                      <Trash2 className="w-3 h-3 mr-1" />Delete
+                    </Button>
                   </div>
 
                   {/* Send notification */}
@@ -241,6 +268,22 @@ const AdminUsers = () => {
           </Card>
         ))}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>This will permanently delete this user and all their data. This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Delete Forever
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
