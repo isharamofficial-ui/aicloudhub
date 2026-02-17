@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge"; // VIP badge
 import {
-  Home, Package, ShoppingCart, Users, User, Settings as SettingsIcon,
+  Home, Package, ShoppingCart, Users, User,
 } from "lucide-react";
 
 const bottomNav = [
@@ -33,12 +33,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
             <span className="text-sm font-medium text-foreground">{maskedEmail}</span>
             <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-[10px] px-1.5 py-0 font-bold">VIP 0</Badge>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">EN</span>
-            <Link to="/settings">
-              <SettingsIcon className="w-5 h-5 text-muted-foreground" />
-            </Link>
           </div>
         </div>
       </header>
