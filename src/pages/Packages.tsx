@@ -69,25 +69,14 @@ const Packages = () => {
 
   const handleBuy = async (pkg: AiPackage) => {
     if (!user) return;
-    const price = pkg.price_onetime || pkg.price_monthly || 0;
     setBuying(pkg.id);
-    const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle();
-    const bal = wallet?.balance ? Number(wallet.balance) : 0;
-    if (bal < price) { toast.error("Insufficient balance. Please deposit funds first."); setBuying(null); return; }
-    const expiresAt = pkg.duration_days ? new Date(Date.now() + pkg.duration_days * 86400000).toISOString() : null;
-    const { error } = await supabase.from("user_packages").insert({ user_id: user.id, package_id: pkg.id, price_paid: price, expires_at: expiresAt });
-    if (!error) {
-      await supabase.from("wallets").update({ balance: bal - price }).eq("user_id", user.id);
-      await supabase.from("transactions").insert({ user_id: user.id, type: "purchase" as const, amount: price, status: "approved" as const, description: `Purchased ${pkg.name}` });
-      await supabase.from("notifications").insert({
-        user_id: user.id, type: "money",
-        title: "Package Purchased",
-        description: `You successfully purchased ${pkg.name} for Rs ${price.toLocaleString()}. Daily income will be added automatically.`,
-      });
-      toast.success(`Successfully purchased ${pkg.name}!`);
-      const upRes = await supabase.from("user_packages").select("*, ai_packages(name, description)").eq("user_id", user.id).order("purchased_at", { ascending: false });
-      setUserPackages((upRes.data || []) as UserPackage[]);
-    } else { toast.error("Failed to purchase package"); }
+    const { data, error } = await supabase.rpc("purchase_package", { p_package_id: pkg.id });
+    if (error) { toast.error("Failed to purchase package"); setBuying(null); return; }
+    const result = data as any;
+    if (!result?.success) { toast.error(result?.error || "Purchase failed"); setBuying(null); return; }
+    toast.success(`Successfully purchased ${pkg.name}!`);
+    const upRes = await supabase.from("user_packages").select("*, ai_packages(name, description)").eq("user_id", user.id).order("purchased_at", { ascending: false });
+    setUserPackages((upRes.data || []) as UserPackage[]);
     setBuying(null);
   };
 
