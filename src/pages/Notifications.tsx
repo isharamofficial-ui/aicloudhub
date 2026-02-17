@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, X, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 const typeEmoji: Record<string, string> = {
   money: "💰",
@@ -20,6 +22,7 @@ const Notifications = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -44,17 +47,38 @@ const Notifications = () => {
     }
   };
 
+  const handleClearAll = async () => {
+    if (!user || notifications.length === 0) return;
+    setClearing(true);
+    const ids = notifications.map(n => n.id);
+    // Delete in batches
+    for (let i = 0; i < ids.length; i += 20) {
+      const batch = ids.slice(i, i + 20);
+      await supabase.from("notifications").delete().in("id", batch);
+    }
+    setNotifications([]);
+    setClearing(false);
+    toast.success("All notifications cleared");
+  };
+
   if (loading) return <div className="px-4 py-4 space-y-3"><Skeleton className="h-14" />{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>;
 
   return (
     <div className="animate-fade-in">
       {/* Header */}
       <div className="sticky top-0 z-30 bg-card border-b border-border">
-        <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-muted/50 flex items-center justify-center">
-            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-          </button>
-          <h1 className="text-base font-heading font-bold text-foreground">Message Center</h1>
+        <div className="flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-muted/50 flex items-center justify-center">
+              <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+            </button>
+            <h1 className="text-base font-heading font-bold text-foreground">Message Center</h1>
+          </div>
+          {notifications.length > 0 && (
+            <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={handleClearAll} disabled={clearing}>
+              <Trash2 className="w-3.5 h-3.5 mr-1" />Clear All
+            </Button>
+          )}
         </div>
       </div>
 
@@ -66,15 +90,18 @@ const Notifications = () => {
           <button
             key={n.id}
             onClick={() => handleSelectNotif(n)}
-            className={`w-full text-left shadow-neu rounded-2xl bg-card p-4 space-y-1 transition-all hover:shadow-card-hover ${!n.is_read ? 'ring-1 ring-primary/20' : ''}`}
+            className={`w-full text-left shadow-neu rounded-2xl bg-card p-4 space-y-1 transition-all hover:shadow-card-hover ${!n.is_read ? 'ring-1 ring-primary/30 border-l-4 border-l-primary' : ''}`}
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-lg">
+              <div className="relative w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-lg">
                 {typeEmoji[n.type] || "📢"}
+                {!n.is_read && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-card" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-heading font-bold text-foreground truncate">{n.title}</p>
+                  <p className={`text-sm font-heading truncate ${!n.is_read ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'}`}>{n.title}</p>
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                   </span>
