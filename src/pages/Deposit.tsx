@@ -60,16 +60,17 @@ const Deposit = () => {
       setUploading(false);
     }
 
-    const { error: depErr } = await supabase.from("deposit_requests").insert({
+    const { data: depData, error: depErr } = await supabase.from("deposit_requests").insert({
       user_id: user.id, amount: amt, payment_method: "bank_transfer" as const,
       notes: reference.trim() || null,
       slip_url: slipUrl,
-    });
+    }).select("id").single();
 
-    if (!depErr) {
+    if (!depErr && depData) {
       await supabase.from("transactions").insert({
         user_id: user.id, type: "deposit" as const, amount: amt, status: "pending" as const,
         description: `Deposit via Bank Transfer${reference ? ` - ${reference}` : ""}`,
+        reference_id: depData.id,
       });
       await supabase.from("notifications").insert({
         user_id: user.id, type: "money",

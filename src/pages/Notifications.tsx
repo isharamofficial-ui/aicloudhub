@@ -23,7 +23,7 @@ const Notifications = () => {
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
+    const fetchNotifs = async () => {
       const { data } = await supabase
         .from("notifications")
         .select("*")
@@ -32,17 +32,17 @@ const Notifications = () => {
         .limit(50);
       setNotifications(data || []);
       setLoading(false);
-
-      if (data && data.some((n: any) => !n.is_read)) {
-        await supabase
-          .from("notifications")
-          .update({ is_read: true })
-          .eq("user_id", user.id)
-          .eq("is_read", false);
-      }
     };
-    fetch();
+    fetchNotifs();
   }, [user]);
+
+  const handleSelectNotif = async (n: any) => {
+    setSelected(n);
+    if (!n.is_read) {
+      await supabase.from("notifications").update({ is_read: true }).eq("id", n.id);
+      setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+    }
+  };
 
   if (loading) return <div className="px-4 py-4 space-y-3"><Skeleton className="h-14" />{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>;
 
@@ -65,7 +65,7 @@ const Notifications = () => {
         {notifications.map((n) => (
           <button
             key={n.id}
-            onClick={() => setSelected(n)}
+            onClick={() => handleSelectNotif(n)}
             className={`w-full text-left shadow-neu rounded-2xl bg-card p-4 space-y-1 transition-all hover:shadow-card-hover ${!n.is_read ? 'ring-1 ring-primary/20' : ''}`}
           >
             <div className="flex items-start gap-3">

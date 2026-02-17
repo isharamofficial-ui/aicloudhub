@@ -125,7 +125,7 @@ const Settings = () => {
     { label: "Withdraw History", icon: ArrowUpFromLine, key: "withdraw-history", action: () => navigate("/transactions") },
     { label: "My Packages", icon: Gift, key: "packages", action: () => navigate("/packages") },
     { label: "Team Report", icon: Users, key: "team", action: () => navigate("/team") },
-    { label: "Commission Details", icon: PieChart, key: "commission", action: () => navigate("/transactions") },
+    { label: "Commission Details", icon: PieChart, key: "commission", action: () => navigate("/commission-details") },
     { label: "Redeem Code", icon: Tag, key: "redeem", action: () => navigate("/redeem") },
     { label: "Message Center", icon: Bell, key: "messages", action: () => navigate("/notifications") },
     { label: "Change Password", icon: Lock, key: "password", action: () => setActiveSection(activeSection === "password" ? null : "password") },

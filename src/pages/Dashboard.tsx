@@ -61,9 +61,11 @@ interface SliderBanner {
 }
 
 // --- Random data generators ---
-const randomPhone = () => {
-  const prefix = ["74", "75", "76", "77", "78", "70", "71", "72"];
-  return `+94${prefix[Math.floor(Math.random() * prefix.length)]}***${String(Math.floor(Math.random() * 900) + 100)}`;
+const randomEmail = () => {
+  const names = ["sam", "nimal", "kamal", "saman", "ruwan", "dilshan", "chamara", "thilina", "nuwan", "kasun", "supun", "dasun", "dinesh", "amila", "lahiru", "hasitha", "pradeep", "suresh", "roshan", "janaka"];
+  const name = names[Math.floor(Math.random() * names.length)];
+  const num = Math.floor(Math.random() * 900) + 100;
+  return `${name}${num}@gmail.com`;
 };
 const randomAmount = (min: number, max: number) =>
   Math.round((Math.floor(Math.random() * (max - min + 1)) + min) / 50) * 50;
@@ -78,7 +80,7 @@ const marqueeTemplates = [
 
 const generateMarqueeMsg = () => {
   const tpl = marqueeTemplates[Math.floor(Math.random() * marqueeTemplates.length)];
-  return tpl(randomPhone(), randomAmount(500, 25000));
+  return tpl(randomEmail(), randomAmount(500, 25000));
 };
 
 const packageIcons = [Brain, DbIcon, Cpu, Server, Zap, Star];
@@ -160,7 +162,7 @@ const Dashboard = () => {
   useEffect(() => {
     let keyCounter = 0;
     const addPayout = () => {
-      const newItem = { user: randomPhone(), amount: randomAmount(500, 20000), key: keyCounter++ };
+      const newItem = { user: randomEmail(), amount: randomAmount(500, 20000), key: keyCounter++ };
       setLivePayouts((prev) => [newItem, ...prev.slice(0, 19)]);
     };
     const seedTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -306,7 +308,7 @@ const Dashboard = () => {
           </div>
           <div className="shadow-neu rounded-2xl bg-card p-4 mb-3">
             <p className="text-3xl font-heading font-bold text-foreground">
-              Rs {commissionTotal.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+              Rs {(wallet?.balance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 0 })}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -488,7 +490,7 @@ const Dashboard = () => {
                 <div key={p.key} className="flex items-center justify-between px-4 h-[38px] animate-fade-in">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                    <span>User {p.user} withdrew</span>
+                    <span>{p.user} withdrew</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-success">Rs.{p.amount.toLocaleString()}</span>

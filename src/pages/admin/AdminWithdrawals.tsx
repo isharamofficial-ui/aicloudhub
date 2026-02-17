@@ -16,16 +16,19 @@ const statusColor: Record<string, string> = {
 
 const AdminWithdrawals = () => {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [profileMap, setProfileMap] = useState<Map<string, string>>(new Map());
+  const [profileMap, setProfileMap] = useState<Map<string, any>>(new Map());
+  const [bankMap, setBankMap] = useState<Map<string, any>>(new Map());
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
 
   const fetchWithdrawals = async () => {
-    const [wdsRes, profilesRes] = await Promise.all([
+    const [wdsRes, profilesRes, bankRes] = await Promise.all([
       supabase.from("withdrawal_requests").select("*, bank_accounts(bank_name, account_number)").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("user_id, display_name"),
+      supabase.from("profiles").select("user_id, display_name, phone"),
+      supabase.from("bank_accounts").select("user_id, bank_name, account_number, iban"),
     ]);
-    setProfileMap(new Map((profilesRes.data || []).map((p: any) => [p.user_id, p.display_name])));
+    setProfileMap(new Map((profilesRes.data || []).map((p: any) => [p.user_id, { name: p.display_name, phone: p.phone }])));
+    setBankMap(new Map((bankRes.data || []).map((b: any) => [b.user_id, b])));
     setWithdrawals(wdsRes.data || []);
     setLoading(false);
   };
@@ -95,7 +98,7 @@ const AdminWithdrawals = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="text-sm font-bold">{profileMap.get(w.user_id) || "User"}</p>
+                  <p className="text-sm font-bold">{profileMap.get(w.user_id)?.name || "User"}</p>
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <Clock className="w-3 h-3" />{new Date(w.created_at).toLocaleString()}
                   </p>
@@ -105,16 +108,25 @@ const AdminWithdrawals = () => {
                   <Badge className={`text-[9px] ${statusColor[w.status]}`}>{w.status}</Badge>
                 </div>
               </div>
-              {w.bank_accounts && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Bank: {w.bank_accounts.bank_name} — {w.bank_accounts.account_number}
-                </p>
-              )}
+              {/* User Account Details */}
+              {(() => {
+                const bank = bankMap.get(w.user_id) || w.bank_accounts;
+                const profile = profileMap.get(w.user_id);
+                return bank || profile?.phone ? (
+                  <div className="bg-muted/30 rounded-xl p-3 mb-2 space-y-1 text-xs text-muted-foreground">
+                    <p className="font-semibold text-foreground text-[11px]">💳 User Account Details</p>
+                    {bank?.bank_name && <p>Bank: <span className="text-foreground">{bank.bank_name}</span></p>}
+                    {bank?.account_number && <p>A/C: <span className="text-foreground">{bank.account_number}</span></p>}
+                    {bank?.iban && <p>IBAN: <span className="text-foreground">{bank.iban}</span></p>}
+                    {profile?.phone && <p>Phone: <span className="text-foreground">{profile.phone}</span></p>}
+                  </div>
+                ) : null;
+              })()}
               {w.notes && <p className="text-xs text-muted-foreground mb-2">Note: {w.notes}</p>}
               {w.status === "pending" && (
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white" disabled={processing === w.id} onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "approved")}>
-                    <Check className="w-3 h-3 mr-1" />Approve
+                    <Check className="w-3 h-3 mr-1" />Deposited
                   </Button>
                   <Button size="sm" variant="destructive" className="flex-1 rounded-xl" disabled={processing === w.id} onClick={() => handleAction(w.id, w.user_id, Number(w.amount), "rejected")}>
                     <X className="w-3 h-3 mr-1" />Reject

@@ -105,7 +105,14 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               {recentNotifs.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => setSelectedNotif(n)}
+                  onClick={async () => {
+                    setSelectedNotif(n);
+                    if (!n.is_read) {
+                      await supabase.from("notifications").update({ is_read: true }).eq("id", n.id);
+                      setRecentNotifs(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+                      setUnreadCount(prev => Math.max(0, prev - 1));
+                    }
+                  }}
                   className="w-full text-left shadow-neu-inset rounded-xl bg-muted/20 p-3 space-y-1 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-start gap-2.5">

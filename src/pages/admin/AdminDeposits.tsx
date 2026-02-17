@@ -46,20 +46,33 @@ const AdminDeposits = () => {
           total_deposited: Number(wallet.total_deposited) + amount,
         }).eq("user_id", userId);
       }
-      await supabase.from("transactions").insert({
-        user_id: userId, type: "deposit", amount, status: "approved",
-        description: "Deposit approved by admin", reference_id: id,
-      });
+      // Update existing pending transaction to approved
+      await supabase.from("transactions").update({ status: "approved", description: "Deposit approved by admin" })
+        .eq("user_id", userId).eq("type", "deposit").eq("status", "pending").eq("reference_id", id);
+      const { data: existingTx } = await supabase.from("transactions").select("id").eq("reference_id", id).eq("status", "approved").maybeSingle();
+      if (!existingTx) {
+        await supabase.from("transactions").insert({
+          user_id: userId, type: "deposit", amount, status: "approved",
+          description: "Deposit approved by admin", reference_id: id,
+        });
+      }
       await supabase.from("notifications").insert({
         user_id: userId, type: "money",
         title: "Deposit Approved ✅",
         description: `Your deposit of Rs ${amount.toLocaleString()} has been approved and credited to your wallet.`,
       });
     } else {
-      await supabase.from("transactions").insert({
-        user_id: userId, type: "deposit", amount, status: "rejected",
-        description: "Deposit rejected by admin", reference_id: id,
-      });
+      // Update existing pending transaction to rejected
+      await supabase.from("transactions").update({ status: "rejected", description: "Deposit rejected by admin" })
+        .eq("user_id", userId).eq("type", "deposit").eq("status", "pending").eq("reference_id", id);
+      // Fallback: insert if no matching pending transaction found
+      const { data: existingTx } = await supabase.from("transactions").select("id").eq("reference_id", id).eq("status", "rejected").maybeSingle();
+      if (!existingTx) {
+        await supabase.from("transactions").insert({
+          user_id: userId, type: "deposit", amount, status: "rejected",
+          description: "Deposit rejected by admin", reference_id: id,
+        });
+      }
       await supabase.from("notifications").insert({
         user_id: userId, type: "money",
         title: "Deposit Rejected ❌",
