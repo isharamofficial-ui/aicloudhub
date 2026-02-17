@@ -296,12 +296,15 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          ban_count: number
           created_at: string
           credit_score: number
           display_name: string | null
           id: string
           is_frozen: boolean
           phone: string | null
+          privacy_accepted: boolean
+          privacy_accepted_at: string | null
           referral_code: string | null
           referred_by: string | null
           updated_at: string
@@ -309,12 +312,15 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          ban_count?: number
           created_at?: string
           credit_score?: number
           display_name?: string | null
           id?: string
           is_frozen?: boolean
           phone?: string | null
+          privacy_accepted?: boolean
+          privacy_accepted_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
@@ -322,12 +328,15 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          ban_count?: number
           created_at?: string
           credit_score?: number
           display_name?: string | null
           id?: string
           is_frozen?: boolean
           phone?: string | null
+          privacy_accepted?: boolean
+          privacy_accepted_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
@@ -625,6 +634,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_deposit: { Args: { p_deposit_id: string }; Returns: Json }
       daily_checkin: { Args: never; Returns: Json }
       generate_referral_code: { Args: never; Returns: string }
       has_role: {

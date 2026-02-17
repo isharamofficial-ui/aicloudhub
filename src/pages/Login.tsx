@@ -5,17 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, Cloud } from "lucide-react";
 
 const getFingerprint = () => {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.textBaseline = "top";
-    ctx.font = "14px Arial";
-    ctx.fillText("fingerprint", 2, 2);
-  }
+  if (ctx) { ctx.textBaseline = "top"; ctx.font = "14px Arial"; ctx.fillText("fingerprint", 2, 2); }
   const canvasData = canvas.toDataURL();
   const screen = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -31,11 +28,7 @@ const logDevice = async (userId: string, eventType: string) => {
   try {
     const ipRes = await fetch("https://api.ipify.org?format=json").then(r => r.json()).catch(() => ({ ip: "unknown" }));
     await supabase.from("device_logs").insert({
-      user_id: userId,
-      ip_address: ipRes.ip,
-      user_agent: navigator.userAgent,
-      fingerprint,
-      event_type: eventType,
+      user_id: userId, ip_address: ipRes.ip, user_agent: navigator.userAgent, fingerprint, event_type: eventType,
     });
   } catch { /* silent */ }
 };
@@ -44,9 +37,9 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already signed in (e.g. after Google OAuth)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
@@ -60,6 +53,7 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) { toast.error("Please fill in all fields"); return; }
+    if (!privacyAccepted) { toast.error("Please accept the Privacy Policy to continue"); return; }
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setLoading(false);
@@ -94,7 +88,15 @@ const Login = () => {
             </div>
             <Input type="password" placeholder="••••••••" className="rounded-xl h-12 shadow-neu-inset bg-muted/30" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
-          <Button type="submit" className="w-full rounded-xl h-12 gradient-primary text-primary-foreground font-semibold text-base mt-2" disabled={loading}>
+          <div className="flex items-start gap-2">
+            <Checkbox id="privacy-login" checked={privacyAccepted} onCheckedChange={(checked) => setPrivacyAccepted(checked === true)} className="mt-0.5" />
+            <label htmlFor="privacy-login" className="text-xs text-muted-foreground leading-tight">
+              I have read and agree to the{" "}
+              <Link to="/privacy-policy" className="text-primary hover:underline font-medium">Privacy Policy</Link>
+              , including device tracking and account management practices.
+            </label>
+          </div>
+          <Button type="submit" className="w-full rounded-xl h-12 gradient-primary text-primary-foreground font-semibold text-base mt-2" disabled={loading || !privacyAccepted}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Login
           </Button>
           <p className="text-sm text-center text-muted-foreground mt-4">
