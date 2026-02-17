@@ -35,6 +35,7 @@ import AdminSliders from "./pages/admin/AdminSliders";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminUserPackages from "./pages/admin/AdminUserPackages";
 import AdminAlerts from "./pages/admin/AdminAlerts";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, Cloud } from "lucide-react";
 
@@ -38,6 +39,7 @@ const Register = () => {
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [searchParams] = useSearchParams();
   const [referralCode, setReferralCode] = useState(searchParams.get("ref") || "");
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ const Register = () => {
     if (!email.trim() || !password.trim() || !displayName.trim()) { toast.error("Please fill in all fields"); return; }
     if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     if (!referralCode.trim()) { toast.error("Invitation code is required"); return; }
+    if (!privacyAccepted) { toast.error("Please accept the Privacy Policy to continue"); return; }
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
@@ -90,7 +93,15 @@ const Register = () => {
           <div className="space-y-1"><Label className="text-sm font-medium">Phone (optional)</Label><Input type="tel" placeholder="+94 7X XXX XXXX" className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
           <div className="space-y-1"><Label className="text-sm font-medium">Password</Label><Input type="password" placeholder="••••••••" className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
           <div className="space-y-1"><Label className="text-sm font-medium">Invitation Code <span className="text-destructive">*</span></Label><Input placeholder="Enter invitation code" className="rounded-xl h-11 shadow-neu-inset bg-muted/30" value={referralCode} onChange={(e) => setReferralCode(e.target.value)} required /></div>
-          <Button type="submit" className="w-full rounded-xl h-12 gradient-primary text-primary-foreground font-semibold text-base mt-2" disabled={loading}>
+          <div className="flex items-start gap-2 pt-1">
+            <Checkbox id="privacy-register" checked={privacyAccepted} onCheckedChange={(checked) => setPrivacyAccepted(checked === true)} className="mt-0.5" />
+            <label htmlFor="privacy-register" className="text-xs text-muted-foreground leading-tight">
+              I have read and agree to the{" "}
+              <Link to="/privacy-policy" className="text-primary hover:underline font-medium">Privacy Policy</Link>
+              , including device tracking, account freezing, and data collection practices.
+            </label>
+          </div>
+          <Button type="submit" className="w-full rounded-xl h-12 gradient-primary text-primary-foreground font-semibold text-base mt-2" disabled={loading || !privacyAccepted}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Create Account
           </Button>
           <p className="text-sm text-center text-muted-foreground mt-3">

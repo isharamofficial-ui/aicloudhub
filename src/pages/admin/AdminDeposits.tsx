@@ -35,105 +35,21 @@ const AdminDeposits = () => {
 
   const handleAction = async (id: string, userId: string, amount: number, action: "approved" | "rejected") => {
     setProcessing(id);
-    const { error } = await supabase.from("deposit_requests").update({ status: action }).eq("id", id);
-    if (error) { toast.error("Failed to update"); setProcessing(null); return; }
 
     if (action === "approved") {
-      const { data: wallet } = await supabase.from("wallets").select("balance, total_deposited").eq("user_id", userId).maybeSingle();
-      const balBefore = wallet ? Number(wallet.balance) : 0;
-      const depBefore = wallet ? Number(wallet.total_deposited) : 0;
-      if (wallet) {
-        await supabase.from("wallets").update({
-          balance: Number(wallet.balance) + amount,
-          total_deposited: Number(wallet.total_deposited) + amount,
-        }).eq("user_id", userId);
-      }
-
-      // Verify balance after update
-      const { data: walletAfter } = await supabase.from("wallets").select("balance, total_deposited").eq("user_id", userId).maybeSingle();
-      const balAfter = walletAfter ? Number(walletAfter.balance) : 0;
-      const expectedBal = balBefore + amount;
-
-      if (Math.abs(balAfter - expectedBal) > 0.01) {
-        await supabase.from("admin_alerts").insert({
-          alert_type: "integrity_error", severity: "critical",
-          title: "⚠️ Balance Mismatch on Deposit Approval",
-          description: `Deposit Rs ${amount.toLocaleString()} for ${profileMap.get(userId) || "User"}. Expected balance: Rs ${expectedBal.toLocaleString()}, Actual: Rs ${balAfter.toLocaleString()}. Possible concurrent modification.`,
-          related_user_ids: [userId],
-        });
-      } else {
-        await supabase.from("admin_alerts").insert({
-          alert_type: "deposit_approved", severity: "info",
-          title: "Deposit Approved ✅",
-          description: `Deposit Rs ${amount.toLocaleString()} approved for ${profileMap.get(userId) || "User"}. Balance: Rs ${balBefore.toLocaleString()} → Rs ${balAfter.toLocaleString()}. Verified OK.`,
-          related_user_ids: [userId],
-        });
-      }
-
-      // Update existing pending transaction to approved
-      await supabase.from("transactions").update({ status: "approved", description: "Deposit approved by admin" })
-        .eq("user_id", userId).eq("type", "deposit").eq("status", "pending").eq("reference_id", id);
-      const { data: existingTx } = await supabase.from("transactions").select("id").eq("reference_id", id).eq("status", "approved").maybeSingle();
-      if (!existingTx) {
-        await supabase.from("transactions").insert({
-          user_id: userId, type: "deposit", amount, status: "approved",
-          description: "Deposit approved by admin", reference_id: id,
-        });
-      }
-      await supabase.from("notifications").insert({
-        user_id: userId, type: "money",
-        title: "Deposit Approved ✅",
-        description: `Your deposit of Rs ${amount.toLocaleString()} has been approved and credited to your wallet.`,
-      });
-
-      // Distribute referral commissions
-      try {
-        const { data: comRates } = await supabase.from("platform_settings").select("value").eq("key", "commission_rates").maybeSingle();
-        const rates = comRates?.value as { level_1?: number; level_2?: number; level_3?: number } | null;
-        if (rates) {
-          const { data: referrals } = await supabase.from("referrals").select("referrer_id, tier").eq("referred_id", userId);
-          if (referrals) {
-            for (const ref of referrals) {
-              const rate = ref.tier === 1 ? (rates.level_1 || 0) : ref.tier === 2 ? (rates.level_2 || 0) : (rates.level_3 || 0);
-              if (rate <= 0) continue;
-              const commAmount = (amount * rate) / 100;
-
-              // Insert commission record
-              await supabase.from("commissions").insert({
-                user_id: ref.referrer_id, amount: commAmount, tier: ref.tier,
-                from_user_id: userId, source_type: "deposit", source_id: id,
-              });
-
-              // Credit referrer wallet
-              const { data: rWallet } = await supabase.from("wallets").select("balance, total_commission").eq("user_id", ref.referrer_id).maybeSingle();
-              if (rWallet) {
-                await supabase.from("wallets").update({
-                  balance: Number(rWallet.balance) + commAmount,
-                  total_commission: Number(rWallet.total_commission) + commAmount,
-                }).eq("user_id", ref.referrer_id);
-              }
-
-              // Commission transaction
-              await supabase.from("transactions").insert({
-                user_id: ref.referrer_id, type: "commission", amount: commAmount, status: "approved",
-                description: `Tier ${ref.tier} commission from deposit`, reference_id: id,
-              });
-
-              // Notify referrer
-              await supabase.from("notifications").insert({
-                user_id: ref.referrer_id, type: "money",
-                title: "Commission Earned 🎉",
-                description: `You earned Rs ${commAmount.toLocaleString()} (Tier ${ref.tier}) from a team member's deposit.`,
-              });
-            }
-          }
-        }
-      } catch (e) { console.error("Commission distribution error:", e); }
+      // Use atomic RPC for deposit approval
+      const { data, error } = await supabase.rpc("approve_deposit", { p_deposit_id: id });
+      if (error) { toast.error(error.message); setProcessing(null); return; }
+      const result = data as any;
+      if (!result?.success) { toast.error(result?.error || "Failed to approve"); setProcessing(null); return; }
+      toast.success(`Deposit approved. Balance: Rs ${Number(result.balance_before).toLocaleString()} → Rs ${Number(result.balance_after).toLocaleString()}`);
     } else {
-      // Update existing pending transaction to rejected
+      // Reject flow remains client-side (no balance changes)
+      const { error } = await supabase.from("deposit_requests").update({ status: "rejected" }).eq("id", id);
+      if (error) { toast.error("Failed to update"); setProcessing(null); return; }
+
       await supabase.from("transactions").update({ status: "rejected", description: "Deposit rejected by admin" })
         .eq("user_id", userId).eq("type", "deposit").eq("status", "pending").eq("reference_id", id);
-      // Fallback: insert if no matching pending transaction found
       const { data: existingTx } = await supabase.from("transactions").select("id").eq("reference_id", id).eq("status", "rejected").maybeSingle();
       if (!existingTx) {
         await supabase.from("transactions").insert({
@@ -150,9 +66,9 @@ const AdminDeposits = () => {
       if (profile) {
         await supabase.from("profiles").update({ credit_score: Math.max(0, (profile.credit_score || 100) - 5) }).eq("user_id", userId);
       }
+      toast.success("Deposit rejected");
     }
 
-    toast.success(`Deposit ${action}`);
     setProcessing(null);
     fetchDeposits();
   };
@@ -168,7 +84,6 @@ const AdminDeposits = () => {
 
       {deposits.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No deposit requests</p>}
 
-      {/* Slip viewer modal */}
       {viewSlip && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={() => setViewSlip(null)}>
           <div className="absolute inset-0 bg-black/60" />
@@ -202,10 +117,7 @@ const AdminDeposits = () => {
                 {d.notes && <span className="ml-3">Note: {d.notes}</span>}
               </div>
               {d.slip_url && (
-                <button
-                  onClick={() => setViewSlip(d.slip_url)}
-                  className="flex items-center gap-1.5 text-xs text-primary font-medium mb-2 hover:underline"
-                >
+                <button onClick={() => setViewSlip(d.slip_url)} className="flex items-center gap-1.5 text-xs text-primary font-medium mb-2 hover:underline">
                   <Image className="w-3.5 h-3.5" /> View Payment Slip
                 </button>
               )}

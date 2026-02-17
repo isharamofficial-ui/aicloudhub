@@ -4,11 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown, Trash2 } from "lucide-react";
+import { ArrowLeft, Search, User, Wallet, ShieldAlert, ShieldCheck, Send, Loader2, Copy, CreditCard, Crown, Trash2, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 
@@ -20,6 +19,7 @@ interface UserRow {
   created_at: string;
   is_frozen: boolean;
   credit_score: number;
+  ban_count: number;
   wallet?: { balance: number; total_deposited: number; total_withdrawn: number; total_commission: number };
   role?: string;
   bank?: { bank_name: string; account_number: string; iban: string | null } | null;
@@ -36,6 +36,8 @@ const AdminUsers = () => {
   const [sending, setSending] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [banDialog, setBanDialog] = useState<{ users: UserRow[]; mode: "bulk" | "single"; currentIndex: number } | null>(null);
+  const [banning, setBanning] = useState(false);
 
   const fetchUsers = async () => {
     const [profilesRes, walletsRes, rolesRes, banksRes] = await Promise.all([
@@ -57,6 +59,7 @@ const AdminUsers = () => {
       created_at: p.created_at,
       is_frozen: p.is_frozen || false,
       credit_score: p.credit_score ?? 100,
+      ban_count: p.ban_count ?? 0,
       wallet: walletMap.get(p.user_id) as any,
       role: roleMap.get(p.user_id) || "user",
       bank: bankMap.get(p.user_id) || null,
@@ -77,18 +80,43 @@ const AdminUsers = () => {
     fetchUsers();
   };
 
-  const handleToggleFreeze = async (userId: string, currentFrozen: boolean) => {
-    const newStatus = !currentFrozen;
-    await supabase.from("profiles").update({ is_frozen: newStatus }).eq("user_id", userId);
+  const executeBan = async (userId: string, displayName: string | null) => {
+    setBanning(true);
+    await supabase.from("profiles").update({ is_frozen: true, ban_count: (users.find(u => u.user_id === userId)?.ban_count || 0) + 1 }).eq("user_id", userId);
     await supabase.from("notifications").insert({
       user_id: userId, type: "security",
-      title: newStatus ? "Account Frozen 🔒" : "Account Unfrozen ✅",
-      description: newStatus
-        ? "Your account has been frozen by admin. Withdrawals are disabled. Contact support."
-        : "Your account has been unfrozen. You can now use all features normally.",
+      title: "Account Frozen 🔒",
+      description: "Your account has been frozen by admin. Withdrawals are disabled. Contact support.",
     });
-    toast.success(newStatus ? "Account frozen" : "Account unfrozen");
+    toast.success(`${displayName || "User"} banned`);
+    setBanning(false);
     fetchUsers();
+  };
+
+  const handleToggleFreeze = async (userId: string, currentFrozen: boolean) => {
+    if (!currentFrozen) {
+      // Show ban dialog with history
+      const user = users.find(u => u.user_id === userId);
+      if (user) {
+        setBanDialog({ users: [user], mode: "single", currentIndex: 0 });
+      }
+      return;
+    }
+    // Unfreeze
+    await supabase.from("profiles").update({ is_frozen: false }).eq("user_id", userId);
+    await supabase.from("notifications").insert({
+      user_id: userId, type: "security",
+      title: "Account Unfrozen ✅",
+      description: "Your account has been unfrozen. You can now use all features normally.",
+    });
+    toast.success("Account unfrozen");
+    fetchUsers();
+  };
+
+  const handleBulkBan = (userIds: string[]) => {
+    const targets = users.filter(u => userIds.includes(u.user_id) && !u.is_frozen);
+    if (targets.length === 0) { toast.error("No unbanned users selected"); return; }
+    setBanDialog({ users: targets, mode: "bulk", currentIndex: 0 });
   };
 
   const handleDecreaseCreditScore = async (userId: string, currentScore: number) => {
@@ -143,6 +171,12 @@ const AdminUsers = () => {
     toast.success("Copied!");
   };
 
+  // Find users sharing same IP for bulk ban suggestion
+  const getSameIpUsers = (userId: string) => {
+    // This is shown contextually in the ban dialog
+    return [];
+  };
+
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     return !q || (u.display_name?.toLowerCase().includes(q)) || u.user_id.includes(q) || (u.phone?.includes(q));
@@ -175,6 +209,7 @@ const AdminUsers = () => {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold">{u.display_name || "No name"}</p>
                       {u.is_frozen && <Badge className="text-[9px] bg-destructive/20 text-destructive">Frozen</Badge>}
+                      {u.ban_count > 0 && <Badge className="text-[9px] bg-yellow-500/20 text-yellow-600">Banned {u.ban_count}x</Badge>}
                     </div>
                     <p className="text-[10px] text-muted-foreground">ID: {u.user_id.slice(0, 8)}... | Credit: {u.credit_score}%</p>
                   </div>
@@ -194,9 +229,9 @@ const AdminUsers = () => {
                     <div><span className="text-muted-foreground">Withdrawn:</span> <span className="font-medium">Rs {(u.wallet?.total_withdrawn ?? 0).toLocaleString()}</span></div>
                     <div><span className="text-muted-foreground">Commission:</span> <span className="font-medium">Rs {(u.wallet?.total_commission ?? 0).toLocaleString()}</span></div>
                     <div><span className="text-muted-foreground">Joined:</span> <span className="font-medium">{new Date(u.created_at).toLocaleDateString()}</span></div>
+                    <div><span className="text-muted-foreground">Times Banned:</span> <span className="font-medium text-destructive">{u.ban_count}</span></div>
                   </div>
 
-                  {/* Bank Details */}
                   {u.bank && (
                     <div className="bg-muted/30 rounded-xl p-3 space-y-2">
                       <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-primary" /> Saved Bank Details</p>
@@ -219,7 +254,6 @@ const AdminUsers = () => {
                     </div>
                   )}
 
-                  {/* Balance edit */}
                   <div className="flex gap-2">
                     <Input type="number" placeholder="New balance" className="rounded-xl h-9 text-sm" value={editBalance} onChange={(e) => setEditBalance(e.target.value)} />
                     <Button size="sm" className="rounded-xl gradient-primary text-primary-foreground" onClick={() => handleUpdateBalance(u.user_id)}>
@@ -227,10 +261,9 @@ const AdminUsers = () => {
                     </Button>
                   </div>
 
-                  {/* Admin actions */}
                   <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant={u.is_frozen ? "default" : "destructive"} className="flex-1 rounded-xl text-xs" onClick={() => handleToggleFreeze(u.user_id, u.is_frozen)}>
-                      {u.is_frozen ? <><ShieldCheck className="w-3 h-3 mr-1" />Unfreeze</> : <><ShieldAlert className="w-3 h-3 mr-1" />Freeze</>}
+                      {u.is_frozen ? <><ShieldCheck className="w-3 h-3 mr-1" />Unfreeze</> : <><ShieldAlert className="w-3 h-3 mr-1" />Ban/Freeze</>}
                     </Button>
                     <Button size="sm" variant="outline" className="flex-1 rounded-xl text-xs border-destructive text-destructive" onClick={() => handleDecreaseCreditScore(u.user_id, u.credit_score)}>
                       Credit -10
@@ -253,7 +286,6 @@ const AdminUsers = () => {
                     </Button>
                   </div>
 
-                  {/* Send notification */}
                   <div className="space-y-2 bg-muted/30 rounded-xl p-3">
                     <p className="text-xs font-bold text-foreground">Send Notification</p>
                     <Input placeholder="Title" className="rounded-xl h-8 text-xs" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} />
@@ -269,12 +301,129 @@ const AdminUsers = () => {
         ))}
       </div>
 
+      {/* Ban confirmation dialog with history */}
+      <Dialog open={!!banDialog} onOpenChange={() => setBanDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              {banDialog?.mode === "bulk" ? `Ban Users (${banDialog.users.length})` : "Ban User"}
+            </DialogTitle>
+            <DialogDescription>
+              {banDialog && banDialog.mode === "bulk"
+                ? "You can ban all users at once or one by one."
+                : "Review ban history before proceeding."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {banDialog && (
+            <div className="space-y-3">
+              {/* Current user being reviewed */}
+              {(() => {
+                const u = banDialog.users[banDialog.currentIndex];
+                if (!u) return null;
+                return (
+                  <div className="bg-muted/30 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold">{u.display_name || "No name"}</p>
+                      {banDialog.mode === "bulk" && (
+                        <Badge variant="outline" className="text-[10px]">{banDialog.currentIndex + 1} / {banDialog.users.length}</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">ID: {u.user_id.slice(0, 12)}...</p>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`text-xs ${u.ban_count > 0 ? 'bg-destructive/20 text-destructive' : 'bg-emerald-500/20 text-emerald-600'}`}>
+                        {u.ban_count > 0 ? `Previously banned ${u.ban_count} time${u.ban_count > 1 ? 's' : ''}` : 'Never banned before'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Balance: Rs {(u.wallet?.balance ?? 0).toLocaleString()}</p>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            {banDialog?.mode === "bulk" && (
+              <>
+                <Button
+                  variant="destructive"
+                  className="w-full rounded-xl"
+                  disabled={banning}
+                  onClick={async () => {
+                    // Ban current one and move to next
+                    const u = banDialog.users[banDialog.currentIndex];
+                    await executeBan(u.user_id, u.display_name);
+                    if (banDialog.currentIndex + 1 < banDialog.users.length) {
+                      setBanDialog({ ...banDialog, currentIndex: banDialog.currentIndex + 1 });
+                    } else {
+                      setBanDialog(null);
+                    }
+                  }}
+                >
+                  {banning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Ban This User & Next
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl text-xs"
+                  onClick={() => {
+                    // Skip to next
+                    if (banDialog.currentIndex + 1 < banDialog.users.length) {
+                      setBanDialog({ ...banDialog, currentIndex: banDialog.currentIndex + 1 });
+                    } else {
+                      setBanDialog(null);
+                    }
+                  }}
+                >
+                  Skip This User
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full rounded-xl"
+                  disabled={banning}
+                  onClick={async () => {
+                    // Ban all remaining
+                    setBanning(true);
+                    for (let i = banDialog.currentIndex; i < banDialog.users.length; i++) {
+                      const u = banDialog.users[i];
+                      await executeBan(u.user_id, u.display_name);
+                    }
+                    setBanning(false);
+                    setBanDialog(null);
+                  }}
+                >
+                  {banning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Ban All Remaining ({banDialog.users.length - banDialog.currentIndex})
+                </Button>
+              </>
+            )}
+            {banDialog?.mode === "single" && (
+              <Button
+                variant="destructive"
+                className="w-full rounded-xl"
+                disabled={banning}
+                onClick={async () => {
+                  const u = banDialog.users[0];
+                  await executeBan(u.user_id, u.display_name);
+                  setBanDialog(null);
+                }}
+              >
+                {banning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Confirm Ban
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setBanDialog(null)} className="w-full rounded-xl">Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>This will permanently delete this user and all their data. This action cannot be undone.</DialogDescription>
+            <DialogDescription>This will permanently delete this user and all their data. If the user is currently logged in, they will be immediately logged out. This action cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancel</Button>

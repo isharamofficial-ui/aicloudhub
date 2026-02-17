@@ -20,34 +20,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the caller is an admin
-    const supabaseUser = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Verify caller is admin
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user: caller }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+    if (authErr || !caller) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerId = claimsData.claims.sub;
-
-    // Check admin role using service role client
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const { data: roleData } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", callerId)
+      .eq("user_id", caller.id)
       .eq("role", "admin")
       .maybeSingle();
 
@@ -66,15 +57,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Prevent self-deletion
-    if (user_id === callerId) {
+    if (user_id === caller.id) {
       return new Response(JSON.stringify({ error: "Cannot delete yourself" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Delete related data first, then auth user
+    // Delete related data first
     await supabaseAdmin.from("notifications").delete().eq("user_id", user_id);
     await supabaseAdmin.from("device_logs").delete().eq("user_id", user_id);
     await supabaseAdmin.from("daily_signins").delete().eq("user_id", user_id);
@@ -90,7 +80,7 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from("user_roles").delete().eq("user_id", user_id);
     await supabaseAdmin.from("profiles").delete().eq("user_id", user_id);
 
-    // Delete auth user
+    // Delete auth user (this also invalidates all sessions/tokens)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
     if (deleteError) {
       return new Response(JSON.stringify({ error: deleteError.message }), {
