@@ -664,6 +664,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      process_all_daily_incomes: { Args: never; Returns: Json }
       purchase_package: { Args: { p_package_id: string }; Returns: Json }
       submit_withdrawal: {
         Args: { p_amount: number; p_bank_account_id: string }
