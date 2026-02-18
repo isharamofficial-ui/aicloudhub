@@ -1,20 +1,19 @@
-import { Info, MapPin, Mail, Globe, Shield } from "lucide-react";
+import { MapPin, Mail, Globe, Shield } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const About = () => (
   <div className="animate-fade-in px-4 py-6 space-y-6">
     {/* Header */}
     <div className="text-center space-y-1">
-      <div className="w-16 h-16 rounded-full gradient-secondary mx-auto flex items-center justify-center shadow-lg">
-        <Info className="w-8 h-8 text-secondary-foreground" />
-      </div>
-      <h1 className="text-xl font-heading font-bold text-foreground mt-3">About AICloudHub</h1>
+      <img src={logo} alt="AI Cloud Hub" className="w-20 h-20 object-contain mx-auto drop-shadow-lg" />
+      <h1 className="text-xl font-heading font-bold text-foreground mt-2">About AI Cloud Hub</h1>
       <p className="text-xs text-muted-foreground">Sri Lanka's #1 AI GPU Rental Platform</p>
     </div>
 
     {/* Description */}
     <div className="shadow-neu rounded-2xl bg-card p-5 space-y-3">
       <p className="text-sm text-foreground leading-relaxed">
-        AICloudHub is Sri Lanka's premier artificial intelligence cloud computing platform. We provide
+        AI Cloud Hub is Sri Lanka's premier artificial intelligence cloud computing platform. We provide
         cutting-edge GPU rental services, AI model hosting, and vector database solutions to
         businesses and individuals across the region.
       </p>
