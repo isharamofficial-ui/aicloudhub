@@ -201,7 +201,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Page content */}
-      <main className="flex-1 pb-20 overflow-y-auto">
+      <main className="flex-1 pb-20">
         {children}
       </main>
 

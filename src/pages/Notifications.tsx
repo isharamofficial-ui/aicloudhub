@@ -122,7 +122,7 @@ const Notifications = () => {
           <div
             style={{
               position: 'fixed',
-              top: '50%',
+              top: '50vh',
               left: '50%',
               transform: 'translate(-50%, -50%)',
               width: 'calc(100% - 48px)',
