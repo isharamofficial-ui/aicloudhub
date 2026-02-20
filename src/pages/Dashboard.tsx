@@ -387,7 +387,7 @@ const Dashboard = () => {
               const isExpired = slide.offer_expires_at && new Date(slide.offer_expires_at) < new Date();
               const showOffer = slide.offer_text && !isExpired;
               const Wrapper = slide.link_url ? 'a' : 'div';
-              const wrapperProps = slide.link_url ? { href: slide.link_url, target: "_blank", rel: "noopener noreferrer" } : {};
+              const wrapperProps = slide.link_url ? { href: slide.link_url, rel: "noopener noreferrer" } : {};
               return (
                 <CarouselItem key={slide.id}>
                   <Wrapper {...wrapperProps} className={cn(

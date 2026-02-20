@@ -163,8 +163,6 @@ const AdminSliders = () => {
         </div>
       </div>
       <div className="space-y-1"><Label className="text-xs">Link URL (optional)</Label><Input className="rounded-xl h-9" value={form.link_url} onChange={(e) => setForm({ ...form, link_url: e.target.value })} placeholder="https://example.com" /></div>
-      <div className="space-y-1"><Label className="text-xs">Offer Text (optional)</Label><Input className="rounded-xl h-9" value={form.offer_text} onChange={(e) => setForm({ ...form, offer_text: e.target.value })} placeholder="e.g. 20% first deposit bonus" /></div>
-      <div className="space-y-1"><Label className="text-xs">Offer Expires At (optional)</Label><Input type="date" className="rounded-xl h-9" value={form.offer_expires_at} onChange={(e) => setForm({ ...form, offer_expires_at: e.target.value })} /></div>
       <div className="space-y-1"><Label className="text-xs">Sort Order</Label><Input type="number" className="rounded-xl h-9" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: e.target.value })} /></div>
     </div>
   );
