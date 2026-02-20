@@ -35,6 +35,7 @@ const Deposit = () => {
   const [bankDetails, setBankDetails] = useState({ bank_name: "Commercial Bank PLC", account_name: "AI Cloud Technologies", account_number: "82001567XX", branch: "Colombo 07" });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string>("bank_transfer");
+  const [methodsLoaded, setMethodsLoaded] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -47,6 +48,7 @@ const Deposit = () => {
         setPaymentMethods(methods);
         if (methods.length > 0) setSelectedMethod(methods[0].id);
       }
+      setMethodsLoaded(true);
     });
   }, []);
 
@@ -167,7 +169,7 @@ const Deposit = () => {
         </div>
 
         {/* Payment Details */}
-        {selectedMethod === "bank_transfer" && (
+        {methodsLoaded && selectedMethod === "bank_transfer" && (
           <div className="shadow-neu rounded-2xl bg-card p-5 space-y-3">
             <h3 className="text-sm font-heading font-bold text-foreground">Receiving Bank Details</h3>
             <div className="space-y-2 text-sm">
@@ -185,7 +187,7 @@ const Deposit = () => {
           </div>
         )}
 
-        {selectedMethod !== "bank_transfer" && activeMethod?.details && (
+        {methodsLoaded && selectedMethod !== "bank_transfer" && activeMethod?.details && (
           <div className="shadow-neu rounded-2xl bg-card p-5 space-y-3">
             <h3 className="text-sm font-heading font-bold text-foreground">{activeMethod.name} Details</h3>
             <div className="space-y-2 text-sm">
