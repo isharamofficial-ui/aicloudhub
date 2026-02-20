@@ -144,9 +144,8 @@ const AdminAlerts = () => {
 
   const handleResolve = async (id: string) => {
     setProcessing(id);
-    await supabase.from("admin_alerts").update({ is_resolved: true }).eq("id", id);
-    setCooldown(id);
-    toast.success("Alert resolved — hidden for 5 minutes");
+    await supabase.from("admin_alerts").delete().eq("id", id);
+    toast.success("Alert deleted");
     setProcessing(null);
     setExpandedId(null);
     fetchAlerts();
