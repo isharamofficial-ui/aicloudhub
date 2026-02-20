@@ -1,78 +1,70 @@
 
-## Root Cause
 
-The notification detail popup in `Notifications.tsx` uses:
-```css
-position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%)
-```
+# Plan: Credit Score Penalties, Ban Reason, and Global Marquee
 
-This **should** work for true viewport centering, but the issue is that `AppLayout.tsx` wraps all page content in:
-```tsx
-<main className="flex-1 pb-20 overflow-y-auto">
-```
+## 1. Credit Score Impact on Withdraw Page
 
-The page scroll happens **inside `<main>`**, not at the `window` level. When a `position: fixed` element is inside a scroll container that has `overflow-y: auto`, the fixed positioning works relative to the scroll container's visual bounds — meaning `top: 50%` can appear offset when the user has scrolled down.
+**Current state:** The withdraw page shows a static "Handling fee: 5%" and "Minimum withdrawal: Rs 1,000" regardless of credit score.
 
-Additionally, the modal `<div>` in `Notifications.tsx` is rendered **inside** the scrollable `<div className="animate-fade-in">` wrapper, which is a child of `<main>`. This means the fixed overlay backdrop (`position: fixed; inset: 0`) covers the viewport correctly, but the modal card position gets affected by the scroll offset.
+**Changes to `src/pages/Withdraw.tsx`:**
+- Fetch `credit_score` from the `profiles` table (already fetching `is_frozen`, just add `credit_score`)
+- Calculate dynamic fee: `5% + (100 - credit_score) * 0.1%`
+- Calculate dynamic minimum withdrawal: base Rs 1,000, increasing as credit score drops (e.g., Rs 1,000 + (100 - score) * 50, so at score 0, minimum is Rs 6,000)
+- Display the actual fee percentage and minimum dynamically
+- Show a warning when credit score is below 100 explaining the penalty
 
-## Fix Strategy
+**Changes to `submit_withdrawal` RPC:**
+- Update the minimum withdrawal check to use the dynamic minimum: `1000 + (100 - credit_score) * 50`
 
-Two changes needed:
+## 2. Lower Redeem Code Income Based on Credit Score
 
-### 1. `src/pages/Notifications.tsx` — Move modal outside scroll flow using a portal-like approach
+**Changes to `src/pages/Redeem.tsx`:**
+- Fetch user's `credit_score` from profiles before redeeming
+- Scale the reward: `actual_reward = reward_amount * (credit_score / 100)`
+- Show the user their effective reward rate if credit score is below 100
+- Update wallet with scaled amount instead of full amount
 
-Move the modal so it uses `position: fixed` with `50vh` (viewport height units) instead of `50%`. Using `50vh` always refers to half the real visible screen height, unaffected by any scroll container. Also switch the backdrop and modal to render at the very end of the component, **outside** any container divs that participate in the layout flow.
+## 3. Lower Commission Based on Credit Score
 
-**Change:**
-```tsx
-// Before
-style={{
-  position: 'fixed',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  ...
-}}
+**Current state:** The `approve_deposit` RPC already scales commissions by credit score. This is already implemented correctly in the database function. No changes needed here -- just verify it's working.
 
-// After — use 50vh instead of 50%
-style={{
-  position: 'fixed',
-  top: '50vh',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  ...
-}}
-```
+## 4. Ban Reason Input with Quick-Select Messages
 
-Also wrap the entire modal (backdrop + card) in a React Fragment and place it **after** the main scrollable content div, ensuring it sits at the root level of the component return, not nested inside the content container.
+**Changes to `src/pages/admin/AdminUserDetail.tsx`:**
+- Add a `banReason` text state and a textarea input in the ban controls section
+- Add quick-select reason buttons: "Suspicious activity detected", "Multiple account violation", "Fraudulent transaction", "Terms of service violation", "Spam or abuse"
+- Pass the reason to the `ban_user` RPC and include it in the notification sent to the user
 
-### 2. `src/components/AppLayout.tsx` — Ensure fixed elements target real viewport
+**Changes to `ban_user` RPC:**
+- Add `p_reason text DEFAULT NULL` parameter
+- Include the reason in the notification description sent to the banned user
 
-The `<main>` tag currently has `overflow-y-auto`. This creates a new scroll context. To ensure `position: fixed` children always anchor to the true viewport, the scroll should remain at the `window` level rather than inside a container.
+## 5. Global Marquee -- Show All Users' Activity
 
-Change `<main>` from `overflow-y-auto` to let the body/window scroll naturally. This means removing `overflow-y-auto` from `<main>` and ensuring the outer wrapper doesn't clip.
+**Problem:** RLS policies on `transactions` table restrict users to only see their own transactions. The marquee fetch runs client-side and is limited by RLS.
 
-**Change:**
-```tsx
-// Before
-<main className="flex-1 pb-20 overflow-y-auto">
+**Solution:** Create a database function (RPC) `get_recent_activity` with `SECURITY DEFINER` that returns anonymized recent transactions from all users (masked names, amounts, types) without exposing raw user data. The Dashboard will call this RPC instead of querying the transactions table directly for the marquee.
 
-// After
-<main className="flex-1 pb-20">
-```
+**New RPC `get_recent_activity`:**
+- Returns the latest 50 approved transactions (withdrawals, deposits, commissions) across all users
+- Returns masked display names (first 3 chars + "***@gmail.com")
+- Accessible to authenticated users
 
-This ensures that all `position: fixed` elements (modal overlays, bottom nav, headers) anchor correctly to the visible screen — not to a scroll container.
+**Changes to `src/pages/Dashboard.tsx`:**
+- Replace direct transaction queries in `fetchRealActivityData` with a call to the new `get_recent_activity` RPC
+- The rest of the marquee rotation logic stays the same
 
-## Files to Edit
+---
 
-| File | Change |
-|------|--------|
-| `src/pages/Notifications.tsx` | Use `top: 50vh` in modal style + restructure modal to be outside content div |
-| `src/components/AppLayout.tsx` | Remove `overflow-y-auto` from `<main>` |
+## Technical Summary
 
-## Impact Assessment
+| Area | File/Function | Change |
+|------|--------------|--------|
+| Dynamic withdrawal fees | `Withdraw.tsx` | Fetch credit_score, show dynamic fee and min |
+| Dynamic withdrawal minimum | `submit_withdrawal` RPC | Use credit-score-based minimum |
+| Redeem code scaling | `Redeem.tsx` | Scale reward by credit_score/100 |
+| Ban reason | `AdminUserDetail.tsx` | Add reason textarea + quick buttons |
+| Ban reason in DB | `ban_user` RPC | Add p_reason parameter, include in notification |
+| Global marquee | New `get_recent_activity` RPC | Security definer function returning anonymized data |
+| Global marquee | `Dashboard.tsx` | Call RPC instead of direct table query |
 
-- Removing `overflow-y-auto` from `<main>` makes the page scroll at the window level — this is the standard web behavior and will not break any other pages. All other sticky/fixed elements (top header, bottom nav) already use `position: sticky` and `position: fixed` which work correctly with window-level scrolling.
-- Using `50vh` for the modal top position guarantees it's always centered on the visible screen regardless of how far the user has scrolled.
-- No database changes needed.
-- Admin section is unaffected.
