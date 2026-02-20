@@ -19,7 +19,7 @@ const gradientOptions = [
   "from-rose-500 via-red-500 to-amber-500",
 ];
 
-const emptyForm = { title: "", subtitle: "", gradient: gradientOptions[0], sort_order: "0" };
+const emptyForm = { title: "", subtitle: "", gradient: gradientOptions[0], sort_order: "0", link_url: "", offer_text: "", offer_expires_at: "" };
 
 const AdminSliders = () => {
   const [banners, setBanners] = useState<any[]>([]);
@@ -68,6 +68,9 @@ const AdminSliders = () => {
       gradient: form.gradient,
       sort_order: parseInt(form.sort_order) || 0,
       image_url: imageUrl,
+      link_url: form.link_url.trim() || null,
+      offer_text: form.offer_text.trim() || null,
+      offer_expires_at: form.offer_expires_at || null,
     });
     setSaving(false);
     if (error) { toast.error("Failed to add banner"); return; }
@@ -82,7 +85,7 @@ const AdminSliders = () => {
   const startEdit = (b: any) => {
     setEditingId(b.id);
     setShowAdd(false);
-    setForm({ title: b.title || "", subtitle: b.subtitle || "", gradient: b.gradient || gradientOptions[0], sort_order: b.sort_order?.toString() || "0" });
+    setForm({ title: b.title || "", subtitle: b.subtitle || "", gradient: b.gradient || gradientOptions[0], sort_order: b.sort_order?.toString() || "0", link_url: b.link_url || "", offer_text: b.offer_text || "", offer_expires_at: b.offer_expires_at ? b.offer_expires_at.split("T")[0] : "" });
     setImageFile(null);
     setImagePreview(b.image_url || null);
   };
@@ -101,6 +104,9 @@ const AdminSliders = () => {
       subtitle: form.subtitle.trim() || null,
       gradient: form.gradient,
       sort_order: parseInt(form.sort_order) || 0,
+      link_url: form.link_url.trim() || null,
+      offer_text: form.offer_text.trim() || null,
+      offer_expires_at: form.offer_expires_at || null,
     };
     if (imageUrl !== undefined) updateData.image_url = imageUrl;
 
@@ -156,6 +162,9 @@ const AdminSliders = () => {
           ))}
         </div>
       </div>
+      <div className="space-y-1"><Label className="text-xs">Link URL (optional)</Label><Input className="rounded-xl h-9" value={form.link_url} onChange={(e) => setForm({ ...form, link_url: e.target.value })} placeholder="https://example.com" /></div>
+      <div className="space-y-1"><Label className="text-xs">Offer Text (optional)</Label><Input className="rounded-xl h-9" value={form.offer_text} onChange={(e) => setForm({ ...form, offer_text: e.target.value })} placeholder="e.g. 20% first deposit bonus" /></div>
+      <div className="space-y-1"><Label className="text-xs">Offer Expires At (optional)</Label><Input type="date" className="rounded-xl h-9" value={form.offer_expires_at} onChange={(e) => setForm({ ...form, offer_expires_at: e.target.value })} /></div>
       <div className="space-y-1"><Label className="text-xs">Sort Order</Label><Input type="number" className="rounded-xl h-9" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: e.target.value })} /></div>
     </div>
   );
@@ -223,7 +232,9 @@ const AdminSliders = () => {
                   </div>
                 )}
                 <CardContent className="p-3 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">Order: {b.sort_order} {b.image_url && "• 🖼 Image"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Order: {b.sort_order} {b.image_url && "• 🖼"} {b.link_url && "• 🔗"} {b.offer_text && "• 🏷️"}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Switch checked={b.is_active} onCheckedChange={() => handleToggle(b.id, b.is_active)} />
                     <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => startEdit(b)}>
