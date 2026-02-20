@@ -12,8 +12,6 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
-const RESOLVE_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-
 const severityColors: Record<string, string> = {
   critical: "bg-red-500/20 text-red-500 border-red-500/30",
   warning: "bg-yellow-500/20 text-yellow-600 border-yellow-500/30",
@@ -26,18 +24,6 @@ const typeIcons: Record<string, any> = {
   same_browser: Monitor,
   impossible_withdrawal: AlertTriangle,
   multi_account: UserX,
-};
-
-const getCooldownKey = (id: string) => `alert_resolved_${id}`;
-
-const isInCooldown = (id: string): boolean => {
-  const ts = localStorage.getItem(getCooldownKey(id));
-  if (!ts) return false;
-  return Date.now() - Number(ts) < RESOLVE_COOLDOWN_MS;
-};
-
-const setCooldown = (id: string) => {
-  localStorage.setItem(getCooldownKey(id), String(Date.now()));
 };
 
 const AdminAlerts = () => {
@@ -166,10 +152,9 @@ const AdminAlerts = () => {
     </div>
   );
 
-  // Filter: not resolved + related users not all banned + not in 5-min cooldown
+  // Filter: not resolved + related users not all banned
   const unresolvedAlerts = alerts.filter(a => {
     if (a.is_resolved) return false;
-    if (isInCooldown(a.id)) return false;
     // Hide if ALL related users are banned
     if (a.related_user_ids?.length > 0) {
       const allBanned = a.related_user_ids.every((id: string) => profiles.get(id)?.isFrozen === true);
