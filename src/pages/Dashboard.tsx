@@ -58,6 +58,9 @@ interface SliderBanner {
   gradient: string;
   sort_order: number;
   image_url: string | null;
+  link_url: string | null;
+  offer_text: string | null;
+  offer_expires_at: string | null;
 }
 
 interface LivePayout {
@@ -351,10 +354,10 @@ const Dashboard = () => {
     );
   }
 
-  const slidesToShow = banners.length > 0 ? banners : [
-    { id: "1", title: "New User Bonus!", subtitle: "Get Rs.100 Free on Signup", gradient: "from-yellow-500 via-red-500 to-orange-500", sort_order: 1, image_url: null },
-    { id: "2", title: "Llama 3 Models Available", subtitle: "Rent Now for Best Returns!", gradient: "from-teal-500 via-cyan-500 to-blue-500", sort_order: 2, image_url: null },
-    { id: "3", title: "Invite 5 Friends", subtitle: "Win Rs.5,000 Reward!", gradient: "from-orange-500 via-pink-500 to-purple-500", sort_order: 3, image_url: null },
+  const slidesToShow: SliderBanner[] = banners.length > 0 ? banners : [
+    { id: "1", title: "New User Bonus!", subtitle: "Get Rs.100 Free on Signup", gradient: "from-yellow-500 via-red-500 to-orange-500", sort_order: 1, image_url: null, link_url: null, offer_text: null, offer_expires_at: null },
+    { id: "2", title: "Llama 3 Models Available", subtitle: "Rent Now for Best Returns!", gradient: "from-teal-500 via-cyan-500 to-blue-500", sort_order: 2, image_url: null, link_url: null, offer_text: null, offer_expires_at: null },
+    { id: "3", title: "Invite 5 Friends", subtitle: "Win Rs.5,000 Reward!", gradient: "from-orange-500 via-pink-500 to-purple-500", sort_order: 3, image_url: null, link_url: null, offer_text: null, offer_expires_at: null },
   ];
 
   return (
@@ -380,27 +383,39 @@ const Dashboard = () => {
           setApi={setCarouselApi}
         >
           <CarouselContent>
-            {slidesToShow.map((slide) => (
-              <CarouselItem key={slide.id}>
-                <div className={cn(
-                  "rounded-2xl p-5 aspect-[16/7] flex flex-col justify-end text-white relative overflow-hidden",
-                  slide.image_url ? "" : `bg-gradient-to-br ${slide.gradient}`
-                )}>
-                  {slide.image_url && (
-                    <img src={slide.image_url} alt={slide.title} className="absolute inset-0 w-full h-full object-cover" />
-                  )}
-                  {(slide.title || slide.subtitle) && <div className="absolute inset-0 bg-black/30" />}
-                  {(slide.title || slide.subtitle) && (
-                    <div className="relative z-10">
-                      {slide.title && <p className="text-lg font-heading font-bold leading-tight">{slide.title}</p>}
-                      {slide.subtitle && <p className="text-sm opacity-90 mt-0.5">{slide.subtitle}</p>}
-                    </div>
-                  )}
-                  {!slide.image_url && <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />}
-                  {!slide.image_url && <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10" />}
-                </div>
-              </CarouselItem>
-            ))}
+            {slidesToShow.map((slide) => {
+              const isExpired = slide.offer_expires_at && new Date(slide.offer_expires_at) < new Date();
+              const showOffer = slide.offer_text && !isExpired;
+              const Wrapper = slide.link_url ? 'a' : 'div';
+              const wrapperProps = slide.link_url ? { href: slide.link_url, target: "_blank", rel: "noopener noreferrer" } : {};
+              return (
+                <CarouselItem key={slide.id}>
+                  <Wrapper {...wrapperProps} className={cn(
+                    "rounded-2xl p-5 aspect-[16/7] flex flex-col justify-end text-white relative overflow-hidden block",
+                    slide.image_url ? "" : `bg-gradient-to-br ${slide.gradient}`
+                  )}>
+                    {slide.image_url && (
+                      <img src={slide.image_url} alt={slide.title} className="absolute inset-0 w-full h-full object-cover" />
+                    )}
+                    {(slide.title || slide.subtitle) && <div className="absolute inset-0 bg-black/30" />}
+                    {showOffer && (
+                      <div className="absolute top-2 right-2 z-20 bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                        🏷️ {slide.offer_text}
+                        {slide.offer_expires_at && <span className="opacity-80 ml-1">till {new Date(slide.offer_expires_at).toLocaleDateString()}</span>}
+                      </div>
+                    )}
+                    {(slide.title || slide.subtitle) && (
+                      <div className="relative z-10">
+                        {slide.title && <p className="text-lg font-heading font-bold leading-tight">{slide.title}</p>}
+                        {slide.subtitle && <p className="text-sm opacity-90 mt-0.5">{slide.subtitle}</p>}
+                      </div>
+                    )}
+                    {!slide.image_url && <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />}
+                    {!slide.image_url && <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10" />}
+                  </Wrapper>
+                </CarouselItem>
+              );
+            })}
           </CarouselContent>
           <div className="flex justify-center gap-1.5 mt-2">
             {slidesToShow.map((_, i) => (
