@@ -92,7 +92,7 @@ const AdminRedeemCodes = () => {
     fetchCodes();
   };
 
-  const FormFields = () => (
+  const formFields = (
     <div className="space-y-3">
       <div className="space-y-1"><Label className="text-xs">Code *</Label><Input className="rounded-xl h-9 uppercase" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="e.g. WELCOME100" /></div>
       <div className="grid grid-cols-2 gap-2">
@@ -120,7 +120,7 @@ const AdminRedeemCodes = () => {
       {showAdd && (
         <Card className="shadow-neu animate-fade-in">
           <CardContent className="p-4 space-y-3">
-            <FormFields />
+            {formFields}
             <Button className="w-full rounded-xl gradient-primary text-primary-foreground" onClick={handleAdd} disabled={saving}>
               {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Add Code
             </Button>
@@ -134,7 +134,7 @@ const AdminRedeemCodes = () => {
             <CardContent className="p-4">
               {editingId === c.id ? (
                 <div className="space-y-3">
-                  <FormFields />
+                  {formFields}
                   <div className="flex gap-2">
                     <Button className="flex-1 rounded-xl gradient-primary text-primary-foreground text-xs" onClick={handleEdit} disabled={saving}>
                       {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3 mr-1" />Save</>}
