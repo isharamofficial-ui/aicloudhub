@@ -128,17 +128,11 @@ const AdminAlerts = () => {
 
     if (newAlerts.length > 0) {
       for (const alert of newAlerts) {
-        const { data: existing } = await supabase.from("admin_alerts").select("id, is_resolved, created_at")
-          .eq("alert_type", alert.alert_type).eq("title", alert.title);
-        const shouldSkip = (existing || []).some((e: any) => {
-          if (!e.is_resolved) return true;
-          return (Date.now() - new Date(e.created_at).getTime()) < 24 * 60 * 60 * 1000;
-        });
-        if (shouldSkip) continue;
-        if (existing && existing.length > 0) {
-          await supabase.from("admin_alerts").delete().in("id", existing.map((e: any) => e.id));
+        const { data: existing } = await supabase.from("admin_alerts").select("id")
+          .eq("alert_type", alert.alert_type).eq("title", alert.title).maybeSingle();
+        if (!existing) {
+          await supabase.from("admin_alerts").insert(alert);
         }
-        await supabase.from("admin_alerts").insert(alert);
       }
       toast.success(`Found ${newAlerts.length} potential issues`);
     } else {
@@ -150,8 +144,15 @@ const AdminAlerts = () => {
 
   const handleResolve = async (id: string) => {
     setProcessing(id);
-    await supabase.from("admin_alerts").update({ is_resolved: true }).eq("id", id);
-    toast.success("Alert resolved");
+    // Get alert details to find related user device logs
+    const alert = alerts.find(a => a.id === id);
+    // Delete alert from database
+    await supabase.from("admin_alerts").delete().eq("id", id);
+    // Delete related device logs so the scan won't re-detect the same pattern
+    if (alert?.related_user_ids?.length > 0) {
+      await supabase.from("device_logs").delete().in("user_id", alert.related_user_ids);
+    }
+    toast.success("Alert resolved & device logs cleared");
     setProcessing(null);
     setExpandedId(null);
     fetchAlerts();
