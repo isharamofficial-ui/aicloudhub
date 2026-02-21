@@ -277,7 +277,7 @@ const Packages = () => {
                       <div>
                         <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
                           <span>Earned: Rs.{(up.actualEarned ?? 0).toLocaleString()}</span>
-                          <span>{daysRemaining}d remaining</span>
+                          <span>{daysRemaining > 0 ? `${daysRemaining}d remaining` : "Expired"}</span>
                         </div>
                         <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                           <div className="h-full gradient-primary rounded-full transition-all" style={{ width: `${progressPct}%` }} />
