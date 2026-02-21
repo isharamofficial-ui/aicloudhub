@@ -501,7 +501,7 @@ const Dashboard = () => {
                     <p className="text-lg font-heading font-bold text-primary">Rs.{up.price_paid.toLocaleString()}</p>
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>Daily: <span className="text-success font-bold">Rs.{dailyIncome}</span></span>
-                      <span>{daysRemaining}d left</span>
+                      <span>{daysRemaining > 0 ? `${daysRemaining}d left` : <span className="text-destructive font-semibold">Expired</span>}</span>
                     </div>
                     <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full gradient-primary rounded-full" style={{ width: `${progressPct}%` }} />

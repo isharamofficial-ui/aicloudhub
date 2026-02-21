@@ -678,6 +678,7 @@ export type Database = {
           }
       claim_package_daily_income: { Args: never; Returns: Json }
       daily_checkin: { Args: never; Returns: Json }
+      deactivate_expired_packages: { Args: never; Returns: Json }
       generate_referral_code: { Args: never; Returns: string }
       get_recent_activity: {
         Args: never
