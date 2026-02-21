@@ -488,7 +488,7 @@ const Dashboard = () => {
                 const daysRemaining = up.expires_at
                   ? Math.max(0, Math.ceil((new Date(up.expires_at).getTime() - Date.now()) / 86400000) - 1)
                   : 29;
-                const daysElapsed = Math.max(0, totalDays - daysRemaining - 1);
+                const daysElapsed = Math.max(0, totalDays - daysRemaining);
                 const progressPct = Math.round((daysElapsed / totalDays) * 100);
 
                 return (
