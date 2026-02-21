@@ -68,7 +68,7 @@ const Packages = () => {
         const dailyIncome = Math.round(Number(up.price_paid) * 0.05);
         return {
           ...up,
-          actualEarned: dailyIncome * daysElapsed,
+          actualEarned: dailyIncome * (daysElapsed + 1),
         };
       });
       setUserPackages(withEarned as UserPackage[]);
@@ -104,7 +104,7 @@ const Packages = () => {
       const daysRemaining = up.expires_at ? Math.max(0, Math.round((new Date(new Date(up.expires_at).toDateString()).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000)) : 30;
       const daysElapsed = Math.max(0, totalDays - daysRemaining);
       const dailyIncome = Math.round(Number(up.price_paid) * 0.05);
-      return { ...up, actualEarned: dailyIncome * daysElapsed };
+      return { ...up, actualEarned: dailyIncome * (daysElapsed + 1) };
     }));
     setBuying(null);
   };
