@@ -94,23 +94,23 @@ const quickActions: {
   dot?: boolean;
   external?: string;
 }[] = [
-  { label: "Sign-in", icon: CalendarCheck, path: "/daily-signin", dot: false },
-  {
-    label: "Group",
-    icon: Send,
-    path: "#telegram",
-    external: "https://t.me/aicloudhub",
-  },
-  { label: "Deposit", icon: Wallet, path: "/deposit" },
-  { label: "Cash Out", icon: Banknote, path: "/withdraw" },
-  {
-    label: "Support",
-    icon: Headphones,
-    path: "#support",
-    external: "https://t.me/aicloudhubxyz",
-  },
-  { label: "About Us", icon: Info, path: "/about" },
-];
+    { label: "Sign-in", icon: CalendarCheck, path: "/daily-signin", dot: false },
+    {
+      label: "Group",
+      icon: Send,
+      path: "#telegram",
+      external: "https://t.me/online_money_sri_lanka",
+    },
+    { label: "Deposit", icon: Wallet, path: "/deposit" },
+    { label: "Cash Out", icon: Banknote, path: "/withdraw" },
+    {
+      label: "Support",
+      icon: Headphones,
+      path: "#support",
+      external: "https://t.me/aicloudhubxyz",
+    },
+    { label: "About Us", icon: Info, path: "/about" },
+  ];
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -566,34 +566,34 @@ const Dashboard = () => {
     banners.length > 0
       ? banners
       : [
-          {
-            id: "1",
-            title: "New User Bonus!",
-            subtitle: "Get Rs.100 Free on Signup",
-            gradient: "from-yellow-500 via-red-500 to-orange-500",
-            sort_order: 1,
-            image_url: null,
-            link_url: null,
-          },
-          {
-            id: "2",
-            title: "Llama 3 Models Available",
-            subtitle: "Rent Now for Best Returns!",
-            gradient: "from-teal-500 via-cyan-500 to-blue-500",
-            sort_order: 2,
-            image_url: null,
-            link_url: null,
-          },
-          {
-            id: "3",
-            title: "Invite 5 Friends",
-            subtitle: "Win Rs.5,000 Reward!",
-            gradient: "from-orange-500 via-pink-500 to-purple-500",
-            sort_order: 3,
-            image_url: null,
-            link_url: null,
-          },
-        ];
+        {
+          id: "1",
+          title: "New User Bonus!",
+          subtitle: "Get Rs.100 Free on Signup",
+          gradient: "from-yellow-500 via-red-500 to-orange-500",
+          sort_order: 1,
+          image_url: null,
+          link_url: null,
+        },
+        {
+          id: "2",
+          title: "Llama 3 Models Available",
+          subtitle: "Rent Now for Best Returns!",
+          gradient: "from-teal-500 via-cyan-500 to-blue-500",
+          sort_order: 2,
+          image_url: null,
+          link_url: null,
+        },
+        {
+          id: "3",
+          title: "Invite 5 Friends",
+          subtitle: "Win Rs.5,000 Reward!",
+          gradient: "from-orange-500 via-pink-500 to-purple-500",
+          sort_order: 3,
+          image_url: null,
+          link_url: null,
+        },
+      ];
 
   return (
     <div className="animate-fade-in">
@@ -778,22 +778,22 @@ const Dashboard = () => {
                 const dailyIncome = Math.round(up.price_paid * 0.05);
                 const totalDays = up.expires_at
                   ? Math.ceil(
-                      (new Date(up.expires_at).getTime() -
-                        new Date(up.purchased_at).getTime()) /
-                        86400000,
-                    )
+                    (new Date(up.expires_at).getTime() -
+                      new Date(up.purchased_at).getTime()) /
+                    86400000,
+                  )
                   : 30;
                 const daysRemaining = up.expires_at
                   ? Math.max(
-                      0,
-                      Math.round(
-                        (new Date(
-                          new Date(up.expires_at).toDateString(),
-                        ).getTime() -
-                          new Date(new Date().toDateString()).getTime()) /
-                          86400000,
-                      ),
-                    )
+                    0,
+                    Math.round(
+                      (new Date(
+                        new Date(up.expires_at).toDateString(),
+                      ).getTime() -
+                        new Date(new Date().toDateString()).getTime()) /
+                      86400000,
+                    ),
+                  )
                   : 30;
                 const daysElapsed = Math.max(0, totalDays - daysRemaining);
                 const progressPct = Math.round((daysElapsed / totalDays) * 100);
@@ -921,8 +921,8 @@ const Dashboard = () => {
                         isHot && "bg-destructive text-destructive-foreground",
                         isNew && "bg-secondary text-secondary-foreground",
                         !isHot &&
-                          !isNew &&
-                          "gradient-secondary text-secondary-foreground",
+                        !isNew &&
+                        "gradient-secondary text-secondary-foreground",
                       )}
                     >
                       {pkg.bonus_tag}
