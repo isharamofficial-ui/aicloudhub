@@ -131,7 +131,7 @@ const Settings = () => {
     { label: "Message Center", icon: Bell, key: "messages", action: () => navigate("/notifications") },
     ...(isGoogleUser ? [] : [{ label: "Change Password", icon: Lock, key: "password", action: () => setActiveSection(activeSection === "password" ? null : "password") }]),
     { label: "Download App", icon: CloudDownload, key: "download", action: () => toast.info("Coming soon!") },
-    { label: "Support", icon: Headphones, key: "support", action: () => window.open("https://wa.me/94771234567", "_blank") },
+    { label: "Support", icon: Headphones, key: "support", action: () => window.open("https://t.me/aicloudhubxyz", "_blank", "noopener,noreferrer") },
     { label: "About Us", icon: Info, key: "about", action: () => navigate("/about") },
   ];
 

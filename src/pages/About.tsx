@@ -53,7 +53,14 @@ const About = () => (
           </div>
           <div>
             <p className="text-xs font-medium text-foreground">Website</p>
-            <p className="text-[11px] text-muted-foreground">www.aicloudhub.com</p>
+            <a
+              href="https://www.aicloudhub.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-muted-foreground hover:text-primary transition-colors hover:underline block"
+            >
+              www.aicloudhub.xyz
+            </a>
           </div>
         </div>
       </div>

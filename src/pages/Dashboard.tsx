@@ -107,7 +107,7 @@ const quickActions: {
     label: "Support",
     icon: Headphones,
     path: "#support",
-    external: "https://wa.me/94771234567",
+    external: "https://t.me/aicloudhubxyz",
   },
   { label: "About Us", icon: Info, path: "/about" },
 ];
